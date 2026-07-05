@@ -1,0 +1,36 @@
+# данные и артефакты обучения
+data/raw/
+data/interim/
+data/processed/
+*.sqlite
+*.sqlite3
+*.db
+models/*.cbm
+models/*.pkl
+catboost_info/
+*.log
+
+# python
+__pycache__/
+*.pyc
+.venv*/
+venv/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# секреты и окружение
+.env
+*.env
+deploy/env.local
+
+# сборка web/ (генерируется deploy/build_web.sh)
+web/index.html
+web/static/
+web/data/
+node_modules/
+
+# os / ide
+.DS_Store
+.idea/
+.vscode/

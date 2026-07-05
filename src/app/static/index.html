@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Проверить цену аренды квартиры в СПб — справедливая цена | SPb Rent</title>
+    <meta name="description" content="Бесплатная проверка цены аренды квартиры в Санкт-Петербурге: справедливая цена, типичный коридор для похожих объявлений, карта цен по районам и метро. Модель обучена на 15 000+ реальных объявлений." />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#f0eee6" />
+    <link rel="canonical" href="https://arenda-spb.vercel.app/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:site_name" content="SPb Rent" />
+    <meta property="og:title" content="Это нормальная цена — или переплата? Проверка аренды в СПб" />
+    <meta property="og:description" content="Введите параметры квартиры из объявления — модель сравнит цену с рынком похожих квартир Петербурга и покажет справедливую цену." />
+    <meta property="og:url" content="https://arenda-spb.vercel.app/" />
+    <meta property="og:image" content="https://arenda-spb.vercel.app/static/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Это нормальная цена — или переплата? Проверка аренды в СПб" />
+    <meta name="twitter:description" content="Справедливая цена аренды, типичный коридор и карта цен Петербурга — по данным 15 000+ объявлений." />
+    <meta name="twitter:image" content="https://arenda-spb.vercel.app/static/og.png" />
+
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/static/favicon.png" type="image/png" sizes="128x128" />
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" />
+
+    <link rel="preconnect" href="https://basemaps.cartocdn.com" />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="/static/styles.css" />
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "SPb Rent — проверка цены аренды квартиры в Санкт-Петербурге",
+      "url": "https://arenda-spb.vercel.app/",
+      "description": "Онлайн-проверка цены аренды квартиры в Санкт-Петербурге: справедливая цена, типичный коридор для похожих объявлений, карта цен по районам, детектор переплат.",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Web",
+      "inLanguage": "ru",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "RUB" },
+      "areaServed": { "@type": "City", "name": "Санкт-Петербург" }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Как сервис считает справедливую цену аренды?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Модель градиентного бустинга обучена на 15 415 реальных объявлениях об аренде в Санкт-Петербурге с CIAN и Яндекс.Недвижимости. Она учитывает район, метро, площадь, планировку, этаж, возраст и тип дома, состояние квартиры и условия сделки." }
+        },
+        {
+          "@type": "Question",
+          "name": "Что такое «типичный коридор» цены?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Это интервал, в который обычно попадают похожие объявления. Он показывает разброс рынка, а не гарантию: коридор накрывает фактическую цену примерно в 77% случаев." }
+        },
+        {
+          "@type": "Question",
+          "name": "Насколько точна оценка?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Медианная ошибка модели — 10,4% на отложенной выборке, средняя ошибка — около 8 600 рублей в месяц. Для редких квартир (очень большая площадь, нетипичная локация) оценка менее надёжна, и сервис честно предупреждает об этом." }
+        },
+        {
+          "@type": "Question",
+          "name": "Это официальная оценка стоимости квартиры?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Нет. Модель оценивает рынок объявлений, а не юридическую или экспертную стоимость квартиры. Используйте её как ориентир перед просмотром и торгом, а не как документ." }
+        },
+        {
+          "@type": "Question",
+          "name": "Почему объявление может быть «подозрительно дешёвым»?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Цена заметно ниже типичного коридора для похожих квартир. Иногда это удачное предложение, но часто — устаревшее объявление, скрытые недостатки или мошенничество. Такие варианты стоит проверять внимательнее." }
+        }
+      ]
+    }
+    </script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <span class="brand">SPb&nbsp;Rent</span>
+        <nav class="tabs" aria-label="Разделы">
+          <button class="tab is-active" data-tab="estimate" type="button">Проверка цены</button>
+          <button class="tab" data-tab="map" type="button">Карта цен</button>
+          <button class="tab" data-tab="market" type="button">Скан рынка</button>
+        </nav>
+        <a class="about-link" href="#about-model">О модели</a>
+      </header>
+
+      <main>
+        <section id="tab-estimate" class="tab-panel is-active" aria-labelledby="estimate">
+          <div class="intro">
+            <h1>Это нормальная цена — или&nbsp;переплата?</h1>
+            <p class="intro-note">Введите параметры квартиры из объявления. Мы сравним цену с похожими квартирами Петербурга и покажем типичный коридор аренды.</p>
+          </div>
+
+          <div class="workspace estimate-grid">
+            <form id="estimate-form" class="panel form-panel">
+              <div class="panel-heading">
+                <h2>Квартира из объявления</h2>
+              </div>
+
+              <div class="field-row">
+                <label for="district">Район</label>
+                <select id="district" name="district" required></select>
+              </div>
+
+              <div class="field-row">
+                <span class="label" id="rooms-label">Комнаты</span>
+                <div class="segmented" data-segment="rooms" role="group" aria-labelledby="rooms-label">
+                  <button type="button" data-value="0">Студия</button>
+                  <button type="button" data-value="1" class="is-selected">1</button>
+                  <button type="button" data-value="2">2</button>
+                  <button type="button" data-value="3">3</button>
+                  <button type="button" data-value="4">4+</button>
+                </div>
+                <input type="hidden" id="rooms" name="rooms" value="1" />
+              </div>
+
+              <div class="form-grid two">
+                <div class="field-row">
+                  <label for="total_area">Площадь, м²</label>
+                  <input id="total_area" name="total_area" type="number" min="10" max="200" step="0.5" value="42" required />
+                </div>
+                <div class="field-row">
+                  <label for="actual_price">Цена в объявлении, ₽/мес</label>
+                  <input id="actual_price" name="actual_price" type="number" min="0" step="1000" value="65000" />
+                </div>
+              </div>
+
+              <div class="form-grid two">
+                <div class="field-row">
+                  <label for="floor">Этаж</label>
+                  <input id="floor" name="floor" type="number" min="1" max="60" value="7" required />
+                </div>
+                <div class="field-row">
+                  <label for="floors_total">Этажность дома</label>
+                  <input id="floors_total" name="floors_total" type="number" min="1" max="60" value="16" required />
+                </div>
+              </div>
+
+              <div class="form-grid two">
+                <div class="field-row">
+                  <label for="metro_name">Метро</label>
+                  <select id="metro_name" name="metro_name"></select>
+                </div>
+                <div class="field-row">
+                  <label for="metro_walk_min">До метро пешком, мин</label>
+                  <input id="metro_walk_min" name="metro_walk_min" type="number" min="1" max="90" step="1" value="12" required />
+                </div>
+              </div>
+
+              <div class="form-grid two">
+                <div class="field-row">
+                  <label for="material_type">Тип дома</label>
+                  <select id="material_type" name="material_type"></select>
+                </div>
+                <div class="field-row">
+                  <label for="build_year">Год постройки</label>
+                  <input id="build_year" name="build_year" type="number" min="1800" max="2026" value="2012" />
+                </div>
+              </div>
+
+              <fieldset class="check-grid">
+                <legend>Условия и состояние</legend>
+                <label><input type="checkbox" id="furnished" checked /> <span>С мебелью</span></label>
+                <label><input type="checkbox" id="dishwasher" /> <span>Посудомойка</span></label>
+                <label><input type="checkbox" id="renov_euro" /> <span>Евроремонт</span></label>
+                <label><input type="checkbox" id="balcony" /> <span>Балкон</span></label>
+                <label><input type="checkbox" id="is_by_homeowner" /> <span>От собственника</span></label>
+                <label><input type="checkbox" id="is_apartments" /> <span>Апартаменты</span></label>
+              </fieldset>
+
+              <div id="form-error" class="form-error" role="alert" aria-live="polite"></div>
+              <button class="primary-action" type="submit">Проверить цену</button>
+            </form>
+
+            <section class="panel result-panel" aria-live="polite">
+              <div id="empty-result" class="empty-result">
+                <h2>Что вы увидите после проверки</h2>
+                <ul class="empty-list">
+                  <li>
+                    <strong>Справедливая цена</strong>
+                    <span>оценка месячной аренды для квартиры с такими параметрами</span>
+                  </li>
+                  <li>
+                    <strong>Типичный коридор</strong>
+                    <span>в какие границы обычно попадают похожие объявления</span>
+                  </li>
+                  <li>
+                    <strong>Вердикт по цене</strong>
+                    <span>в пределах рынка, похоже на переплату или подозрительно дёшево</span>
+                  </li>
+                  <li>
+                    <strong>Что двигает цену</strong>
+                    <span>сколько рублей добавляют или снимают локация, метраж, дом и состояние</span>
+                  </li>
+                </ul>
+                <p class="fineprint">Интервал — не абсолютная истина, а типичный коридор для похожих объявлений в данных.</p>
+              </div>
+
+              <div id="result-content" class="result-content" hidden>
+                <div class="result-topline">
+                  <div>
+                    <p class="eyebrow">Справедливая цена</p>
+                    <div id="fair-price" class="price">—</div>
+                  </div>
+                  <span id="verdict-chip" class="verdict-chip neutral">Цена не указана</span>
+                </div>
+
+                <div class="interval-block">
+                  <p class="interval-title">Типичный коридор для похожих объявлений</p>
+                  <div class="interval-track">
+                    <span id="fair-marker" class="fair-marker" title="Справедливая цена"></span>
+                    <span id="actual-marker" class="actual-marker" title="Цена в объявлении" hidden></span>
+                  </div>
+                  <div class="interval-labels">
+                    <span id="price-low">—</span>
+                    <span id="price-high">—</span>
+                  </div>
+                  <p id="result-note" class="muted-note">Коридор показывает разброс цен похожих квартир, а не гарантию.</p>
+                </div>
+
+                <div class="summary-strip">
+                  <div>
+                    <span>Цена в объявлении</span>
+                    <strong id="actual-price">—</strong>
+                  </div>
+                  <div>
+                    <span>Разница со справедливой</span>
+                    <strong id="delta-price">—</strong>
+                  </div>
+                </div>
+
+                <div class="factor-section">
+                  <div class="section-title-row">
+                    <h3>Что двигает цену</h3>
+                    <span>вклад в ₽/мес</span>
+                  </div>
+                  <div id="factor-list" class="factor-list"></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="tab-map" class="tab-panel" aria-labelledby="map">
+          <div class="intro">
+            <h1>Где в городе аренда дороже</h1>
+            <p class="intro-note">Цвет — медианная цена там, где есть минимум три объявления. Это рыночный слой по данным объявлений, а не оценка конкретной квартиры.</p>
+          </div>
+
+          <div class="workspace map-workspace">
+            <aside class="panel map-side">
+              <div class="metric-stack">
+                <div>
+                  <span>Участков города</span>
+                  <strong id="map-count">—</strong>
+                </div>
+                <div>
+                  <span>Показано</span>
+                  <strong id="map-layer-label">₽/м²</strong>
+                </div>
+              </div>
+              <div class="segmented vertical" data-segment="mapMetric">
+                <button type="button" data-value="ppm2" class="is-selected">Цена за м²</button>
+                <button type="button" data-value="price_median">Цена за месяц</button>
+              </div>
+              <div class="legend">
+                <span id="legend-low">—</span>
+                <div class="legend-bar"></div>
+                <span id="legend-high">—</span>
+              </div>
+              <p class="fineprint">Наведите курсор на участок, чтобы увидеть цену и число объявлений.</p>
+            </aside>
+            <div class="panel map-panel">
+              <div id="price-map" class="price-map"></div>
+              <div id="map-fallback" class="map-fallback" hidden>Карта не загрузилась. Данные доступны в «Скане рынка».</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-market" class="tab-panel" aria-labelledby="market">
+          <div class="intro">
+            <h1>Переплаты и подозрительно дешёвые объявления</h1>
+            <p class="intro-note">Объявления за пределами типичного коридора. Это повод присмотреться к объекту, а не автоматический приговор.</p>
+          </div>
+
+          <div class="workspace market-workspace">
+            <aside class="panel market-side">
+              <div class="metric-stack">
+                <div><span>Проверено объявлений</span><strong id="scan-total">—</strong></div>
+                <div><span>В пределах рынка</span><strong id="scan-fair">—</strong></div>
+                <div><span>Похоже на переплату</span><strong id="scan-overpriced">—</strong></div>
+                <div><span>Подозрительно дёшево</span><strong id="scan-cheap">—</strong></div>
+              </div>
+              <div class="segmented vertical" data-segment="scanVerdict">
+                <button type="button" data-value="overpriced" class="is-selected">Переоценённые</button>
+                <button type="button" data-value="suspicious_cheap">Подозрительно дешёвые</button>
+                <button type="button" data-value="fair">В рынке</button>
+              </div>
+            </aside>
+            <div class="panel table-panel">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Район</th>
+                      <th>Метро</th>
+                      <th>Квартира</th>
+                      <th class="num">Цена в объявлении</th>
+                      <th class="num">Справедливая цена</th>
+                      <th class="num">Разница</th>
+                    </tr>
+                  </thead>
+                  <tbody id="scan-table"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <section class="faq" aria-labelledby="faq-title">
+        <h2 id="faq-title">Вопросы о проверке цены</h2>
+        <div class="faq-list">
+          <details>
+            <summary>Как сервис считает справедливую цену аренды?</summary>
+            <p>Модель градиентного бустинга обучена на 15 415 реальных объявлениях об аренде в Санкт-Петербурге с CIAN и Яндекс.Недвижимости. Она учитывает район, метро, площадь, планировку, этаж, возраст и тип дома, состояние квартиры и условия сделки.</p>
+          </details>
+          <details>
+            <summary>Что такое «типичный коридор» цены?</summary>
+            <p>Это интервал, в который обычно попадают похожие объявления. Он показывает разброс рынка, а не гарантию: коридор накрывает фактическую цену примерно в 77% случаев.</p>
+          </details>
+          <details>
+            <summary>Насколько точна оценка?</summary>
+            <p>Медианная ошибка модели — 10,4% на отложенной выборке, средняя — около 8 600 ₽ в месяц. Для редких квартир (очень большая площадь, нетипичная локация) оценка менее надёжна, и сервис предупреждает об этом.</p>
+          </details>
+          <details>
+            <summary>Это официальная оценка стоимости квартиры?</summary>
+            <p>Нет. Модель оценивает рынок объявлений, а не юридическую или экспертную стоимость квартиры. Используйте её как ориентир перед просмотром и торгом, а не как документ.</p>
+          </details>
+          <details>
+            <summary>Почему объявление может быть «подозрительно дешёвым»?</summary>
+            <p>Цена заметно ниже типичного коридора для похожих квартир. Иногда это удачное предложение, но часто — устаревшее объявление, скрытые недостатки или мошенничество. Такие варианты стоит проверять внимательнее.</p>
+          </details>
+        </div>
+      </section>
+
+      <footer id="about-model" class="site-footer">
+        <div class="footer-grid">
+          <div class="footer-about">
+            <span class="brand light">SPb&nbsp;Rent</span>
+            <p>Модель обучена на объявлениях об аренде в Санкт-Петербурге (CIAN и Яндекс.Недвижимость). Она оценивает рынок объявлений, а не юридическую или экспертную стоимость квартиры.</p>
+          </div>
+          <dl class="footer-metrics" aria-label="Метрики модели">
+            <div>
+              <dt>Объявлений после чистки</dt>
+              <dd id="metric-clean">15 415</dd>
+            </div>
+            <div>
+              <dt>Медианная ошибка</dt>
+              <dd id="metric-mdape">10,4%</dd>
+            </div>
+            <div>
+              <dt>Средняя ошибка</dt>
+              <dd id="metric-mae">8 606 ₽</dd>
+            </div>
+            <div>
+              <dt>Коридор накрывает факт</dt>
+              <dd id="metric-coverage">77%</dd>
+            </div>
+          </dl>
+        </div>
+      </footer>
+    </div>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

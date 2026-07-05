@@ -1,0 +1,11 @@
+data/raw/
+data/interim/
+data/*.sqlite
+.venv/
+__pycache__/
+.git/
+notebooks/
+tests/
+*.log
+.pytest_cache/
+.ruff_cache/

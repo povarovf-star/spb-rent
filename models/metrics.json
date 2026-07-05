@@ -1,0 +1,36 @@
+{
+  "baseline_median_ppm2": {
+    "MAE": 11770.372233506527,
+    "MdAE": 6426.482873851273,
+    "MdAPE_%": 15.779352226720661
+  },
+  "ridge_cv": {
+    "MAE": 9827.590823443858,
+    "MdAE": 5100.522283923632,
+    "MdAPE_%": 13.037501109535256
+  },
+  "n_train": 12213,
+  "n_holdout": 3054,
+  "catboost_cv_random": {
+    "MAE": 7976.472315976125,
+    "MdAE": 4070.910286359905,
+    "MdAPE_%": 10.362423744567131
+  },
+  "catboost_cv_spatial_h3": {
+    "MAE": 8829.778280576367,
+    "MdAE": 4512.833093337999,
+    "MdAPE_%": 11.488982924977192
+  },
+  "catboost_holdout": {
+    "MAE": 8605.729002150993,
+    "MdAE": 4238.883875432097,
+    "MdAPE_%": 10.420867162872211
+  },
+  "quantile_model": {
+    "cqr_delta_log": 0.0266,
+    "coverage_q10_q90_calibrated": 0.77,
+    "share_below_q10": 0.113,
+    "share_above_q90": 0.117,
+    "median_interval_width_rel": 0.396
+  }
+}
