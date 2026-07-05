@@ -1,0 +1,42 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/api/assets", "destination": "/data/assets.json" },
+    { "source": "/api/map", "destination": "/data/map.json" },
+    {
+      "source": "/api/scan",
+      "has": [{ "type": "query", "key": "verdict", "value": "overpriced" }],
+      "destination": "/data/scan-overpriced.json"
+    },
+    {
+      "source": "/api/scan",
+      "has": [{ "type": "query", "key": "verdict", "value": "suspicious_cheap" }],
+      "destination": "/data/scan-suspicious_cheap.json"
+    },
+    {
+      "source": "/api/scan",
+      "has": [{ "type": "query", "key": "verdict", "value": "fair" }],
+      "destination": "/data/scan-fair.json"
+    },
+    { "source": "/api/scan", "destination": "/data/scan-overpriced.json" }
+  ],
+  "headers": [
+    {
+      "source": "/static/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, stale-while-revalidate=86400" }]
+    },
+    {
+      "source": "/data/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, stale-while-revalidate=86400" }]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}
