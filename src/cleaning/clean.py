@@ -1,10 +1,10 @@
-"""Чистка данных: фильтры мусора + дедупликация агентских клонов.
+"""Data cleaning: junk filters + deduplication of agency clones.
 
-Каждый фильтр логируется: сколько строк убито и почему. Итог — отчёт
-data/processed/cleaning_report.md (таблица потерь — прямо в README).
+Every filter is logged: how many rows were dropped and why. The result is the
+report data/processed/cleaning_report.md (the loss table goes straight into the README).
 
-Запуск:
-    python -m src.cleaning.clean                # по умолчанию data/cian.sqlite
+Run:
+    python -m src.cleaning.clean                # data/cian.sqlite by default
     python -m src.cleaning.clean --db path.sqlite --out data/processed
 """
 
@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pandas as pd
 
-# Жёсткие границы валидности (долгосрочная аренда, СПб + ближний пригород)
+# Hard validity bounds (long-term rentals, SPb + near suburbs)
 PRICE_MIN, PRICE_MAX = 8_000, 350_000
 AREA_MIN, AREA_MAX = 10.0, 200.0
-PPM2_MIN, PPM2_MAX = 300.0, 6_000.0  # ₽ за м² в месяц
+PPM2_MIN, PPM2_MAX = 300.0, 6_000.0  # RUB per m2 per month
 
 COLUMNS = """offer_id snapshot_date price deposit client_fee_pct agent_fee_pct
 utilities_included rooms flat_type is_apartments total_area living_area
@@ -29,7 +29,7 @@ published_ts photos_count region url description""".split()
 
 
 def load(db_path: str | Path, snapshot: str | None = None) -> pd.DataFrame:
-    """Читает последний (или указанный) снимок. raw_json не тянем — тяжёлый."""
+    """Reads the latest (or given) snapshot. raw_json is skipped, it is heavy."""
     conn = sqlite3.connect(db_path)
     if snapshot is None:
         snapshot = conn.execute(
@@ -57,9 +57,9 @@ class FilterLog:
 
     def to_markdown(self, n_start: int) -> str:
         lines = [
-            "| Фильтр | Убрано строк | Осталось |",
+            "| Filter | Rows dropped | Remaining |",
             "|---|---:|---:|",
-            f"| исходно | — | {n_start} |",
+            f"| initial | - | {n_start} |",
         ]
         for name, dropped, left in self.rows:
             lines.append(f"| {name} | {dropped} | {left} |")
@@ -67,14 +67,14 @@ class FilterLog:
 
 
 def add_derived(df: pd.DataFrame) -> pd.DataFrame:
-    """Производные колонки, нужные фильтрам и модели."""
+    """Derived columns needed by the filters and the model."""
     df = df.copy()
-    # rooms_n: 0 = студия/свободная планировка, иначе число комнат
+    # rooms_n: 0 = studio/open plan, otherwise the number of rooms
     df["rooms_n"] = df["rooms"].where(df["flat_type"] == "rooms", 0)
     df["is_studio"] = (df["flat_type"] == "studio").astype(int)
     df["is_lenobl"] = (df["region"] == 4588).astype(int)
     df["price_per_m2"] = df["price"] / df["total_area"]
-    if "source" not in df.columns:       # одиночный источник — по умолчанию ЦИАН
+    if "source" not in df.columns:       # single source, default to CIAN
         df["source"] = "cian"
     return df
 
@@ -85,36 +85,36 @@ def clean(df: pd.DataFrame) -> tuple[pd.DataFrame, str]:
     df = add_derived(df)
 
     df = log.apply(df, df["price"].between(PRICE_MIN, PRICE_MAX),
-                   f"цена вне [{PRICE_MIN}, {PRICE_MAX}] ₽/мес")
+                   f"price outside [{PRICE_MIN}, {PRICE_MAX}] RUB/mo")
     df = log.apply(df, df["total_area"].between(AREA_MIN, AREA_MAX),
-                   f"площадь вне [{AREA_MIN}, {AREA_MAX}] м²")
-    df = log.apply(df, df["lat"].notna() & df["lon"].notna(), "нет координат")
+                   f"area outside [{AREA_MIN}, {AREA_MAX}] m2")
+    df = log.apply(df, df["lat"].notna() & df["lon"].notna(), "no coordinates")
     df = log.apply(df, df["price_per_m2"].between(PPM2_MIN, PPM2_MAX),
-                   f"цена/м² вне [{PPM2_MIN}, {PPM2_MAX}] ₽")
-    df = log.apply(df, df["rooms_n"].notna(), "не определить комнатность")
-    # грубая ошибка геокода: далеко за пределами агломерации
+                   f"price/m2 outside [{PPM2_MIN}, {PPM2_MAX}] RUB")
+    df = log.apply(df, df["rooms_n"].notna(), "room count undetermined")
+    # gross geocode error: far outside the agglomeration
     df = log.apply(df, df["lat"].between(59.5, 60.5) & df["lon"].between(29.5, 31.0),
-                   "координаты вне агломерации СПб")
+                   "coordinates outside the SPb agglomeration")
 
-    # --- флаг подозрительно дёшево (скам): < 50% медианы цены/м² своего района ---
-    seg = df["district"].fillna("ЛО")
+    # --- suspiciously cheap flag (scam): < 50% of the district's median price/m2 ---
+    seg = df["district"].fillna("LO")
     seg_median = df.groupby(seg)["price_per_m2"].transform("median")
     df["is_suspicious_cheap"] = (df["price_per_m2"] < 0.5 * seg_median).astype(int)
 
-    # --- дедупликация агентских клонов ---
-    # Одна квартира у нескольких агентств: совпадают координаты (~10 м),
-    # площадь (±0.25 м²), этаж и комнатность. Оставляем собственника,
-    # при равенстве — минимальную цену.
+    # --- deduplication of agency clones ---
+    # One flat listed by several agencies: matching coordinates (~10 m),
+    # area (±0.25 m2), floor and room count. Keep the owner's listing,
+    # and on a tie the minimum price.
     df["dup_key"] = (
         df["lat"].round(4).astype(str) + "_" + df["lon"].round(4).astype(str)
         + "_" + (df["total_area"] * 2).round().astype(int).astype(str)
         + "_" + df["floor"].astype(str) + "_" + df["rooms_n"].astype(int).astype(str)
     )
     df["n_clones"] = df.groupby("dup_key")["offer_id"].transform("count")
-    # число площадок в группе-дубле: 2 = квартира есть и на ЦИАН, и на Яндексе
+    # number of platforms in a duplicate group: 2 = the flat is on both CIAN and Yandex
     df["n_platforms"] = df.groupby("dup_key")["source"].transform("nunique")
     df["cross_platform"] = (df["n_platforms"] >= 2).astype(int)
-    # приоритет при склейке: ЦИАН (богаче полями) > собственник > меньшая цена
+    # merge priority: CIAN (richer fields) > owner > lower price
     df["_cian_first"] = (df["source"] != "cian").astype(int)
     df = df.sort_values(
         ["dup_key", "_cian_first", "is_by_homeowner", "price"],
@@ -122,7 +122,7 @@ def clean(df: pd.DataFrame) -> tuple[pd.DataFrame, str]:
     )
     before = len(df)
     df = df.drop_duplicates("dup_key", keep="first").drop(columns="_cian_first")
-    log.rows.append(("дубли (агентства + кросс-платформенные)", before - len(df), len(df)))
+    log.rows.append(("duplicates (agencies + cross-platform)", before - len(df), len(df)))
 
     report = log.to_markdown(n_start)
     return df.drop(columns=["dup_key"]), report
@@ -132,7 +132,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", default="data/cian.sqlite")
     parser.add_argument("--parquet", default=None,
-                        help="читать объединённый датасет (ЦИАН+Яндекс) вместо sqlite")
+                        help="read the combined dataset (CIAN+Yandex) instead of sqlite")
     parser.add_argument("--out", default="data/processed")
     parser.add_argument("--snapshot", default=None)
     args = parser.parse_args()
@@ -149,18 +149,18 @@ def main() -> None:
     cleaned.to_parquet(out / "listings.parquet", index=False)
 
     header = (
-        f"# Отчёт чистки данных\n\nСнимок: {snapshot}. "
-        f"Вход: {len(df)} объявлений, выход: {len(cleaned)}.\n\n"
+        f"# Data cleaning report\n\nSnapshot: {snapshot}. "
+        f"Input: {len(df)} listings, output: {len(cleaned)}.\n\n"
     )
     by_source = dict(cleaned["source"].value_counts()) if "source" in cleaned else {}
     extras = (
-        f"\n\nПомечено флагом (не удалено):\n"
-        f"- подозрительно дёшево (< 50% медианы района): "
+        f"\n\nFlagged (not removed):\n"
+        f"- suspiciously cheap (< 50% of the district median): "
         f"{int(cleaned['is_suspicious_cheap'].sum())}\n"
-        f"- апартаменты: {int(cleaned['is_apartments'].fillna(0).sum())}\n"
-        f"- Ленобласть: {int(cleaned['is_lenobl'].sum())}\n"
-        f"- по источникам: {by_source}\n"
-        f"- кросс-платформенных (квартира и на ЦИАН, и на Яндексе): "
+        f"- apart-hotels: {int(cleaned['is_apartments'].fillna(0).sum())}\n"
+        f"- Leningrad Oblast: {int(cleaned['is_lenobl'].sum())}\n"
+        f"- by source: {by_source}\n"
+        f"- cross-platform (flat on both CIAN and Yandex): "
         f"{int(cleaned['cross_platform'].sum()) if 'cross_platform' in cleaned else 0}\n"
     )
     (out / "cleaning_report.md").write_text(header + report + extras, encoding="utf-8")

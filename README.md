@@ -1,104 +1,104 @@
-# SPb Rent — сколько на самом деле стоит снять квартиру в Санкт-Петербурге
+# SPb Rent: what it really costs to rent an apartment in St. Petersburg
 
-**Вводишь параметры квартиры → получаешь справедливую рыночную цену аренды с интервалом, разбор из чего она складывается и вердикт: переплата это или честная цена.**
+**Enter the flat's parameters and get a fair market rent with a range, a breakdown of what drives it, and a verdict: are you overpaying or is the price honest?**
 
-🔗 **Живое демо:** https://arenda-spb.vercel.app
+🔗 **Live demo:** https://arenda-spb.vercel.app
 
-End-to-end ML-проект: свой сбор данных с двух площадок, чистка и дедупликация,
-градиентный бустинг с интерпретацией, детектор переплаты, веб-дашборд с картой цен,
-задеплоенный в Docker на боевом сервере.
+An end-to-end ML project: my own data collection from two listing sites, cleaning and
+deduplication, gradient boosting with interpretation, an overpricing detector, and a
+web dashboard with a price map, deployed in Docker on a production server.
 
 ---
 
-## Ключевые цифры
+## Key numbers
 
-| Метрика | Значение |
+| Metric | Value |
 |---|---|
-| Датасет после чистки и дедупа | **15 415** объявлений (ЦИАН 11 525 + Яндекс 3 890) |
-| Кросс-платформенных дублей поймано (одна квартира на двух площадках) | 736 |
-| **MAE модели** (средняя ошибка в рублях, holdout) | **8 606 ₽/мес** |
-| Медианная ошибка в % (MdAPE) | **10.4 %** |
-| Прирост к наивному baseline | **−27 %** (11 770 → 8 606 ₽) |
-| Покрытие интервала предсказания (калибровка CQR) | **77 %** |
-| Переоценённых объявлений (цена выше верхней границы интервала) | 1 247 из 15 415 (**8.1 %**) |
+| Dataset after cleaning and dedup | **15,415** listings (CIAN 11,525 + Yandex 3,890) |
+| Cross-platform duplicates caught (same flat on both sites) | 736 |
+| **Model MAE** (mean error in rubles, holdout) | **8,606 ₽/mo** |
+| Median error in % (MdAPE) | **10.4%** |
+| Gain over the naive baseline | **-27%** (11,770 to 8,606 ₽) |
+| Prediction interval coverage (CQR calibration) | **77%** |
+| Overpriced listings (price above the upper bound of the interval) | 1,247 of 15,415 (**8.1%**) |
 
-Срез данных: **июль 2026** (cron обновляет снимки 2×/неделю).
+Data snapshot: **July 2026** (a cron job refreshes snapshots twice a week).
 
-Метрика — MAE в **рублях**, а не абстрактный RMSE: «модель ошибается в среднем на 8.6 тыс. ₽»
-понятно и заказчику, и пользователю.
-
----
-
-## Как это работает
-
-```
-ЦИАН (JSON API)  ┐
-                 ├─► сбор ─► чистка + дедуп ─► признаки ─► CatBoost ─► SHAP + интервалы ─► FastAPI + веб-карта
-Яндекс (headless)┘         (фильтры,          (гео + текст)  (log-target)  (детектор           (Docker на VPS)
-                            агентские клоны)                                переплаты)
-```
-
-1. **Сбор.** ЦИАН — через внутренний JSON API выдачи (`curl_cffi` с TLS-отпечатком Chrome, адаптивная сегментация по цене/комнатам для обхода лимита глубины ~700, чекпоинты). Яндекс — headless-браузером (Playwright): чистого HTTP-доступа нет, оферы рендерит JS. Cron снимает срезы 2×/неделю → копится история цен.
-2. **Чистка.** Фильтры мусора с логом потерь (отчёт генерируется в `data/processed/cleaning_report.md`), удаление посуточной аренды, и главное — **дедупликация одной квартиры**, размещённой несколькими агентствами и на двух площадках сразу (736 кросс-платформенных дублей), по координатам + площади + этажу.
-3. **Признаки.** 6 категориальных + 42 числовых. Гео: расстояние до центра и вокзала, минуты до метро, H3-гексагоны. Текст описаний: ремонт, мебель, техника.
-4. **Модель.** `log(price)`-таргет, CatBoost. Валидация в т.ч. пространственная (GroupKFold по гексагонам — модель оценивает районы, которых не видела).
-5. **Интерпретация.** SHAP, сгруппированный в 6 человекочитаемых факторов с вкладами в рублях. Интервалы предсказания через конформную калибровку (CQR). Детектор переплаты по интервалу.
-6. **Продукт.** FastAPI-сервис `/predict` + свой веб-фронт с формой, картой цен по H3-гексагонам и таблицей самых переоценённых объявлений. Docker Compose на VPS.
+The metric is MAE in **rubles**, not an abstract RMSE. "The model is off by about 8.6k ₽
+on average" is clear both to a client and to a user.
 
 ---
 
-## Лестница моделей
+## How it works
 
-| Модель | Валидация | MAE, ₽ | MdAPE |
+```
+CIAN (JSON API)   ┐
+                  ├─► collect ─► clean + dedup ─► features ─► CatBoost ─► SHAP + intervals ─► FastAPI + web map
+Yandex (headless) ┘           (filters,          (geo + text)  (log target)  (overpricing        (Docker on a VPS)
+                               agency clones)                                 detector)
+```
+
+1. **Collection.** CIAN is fetched through the internal JSON search API (`curl_cffi` with a Chrome TLS fingerprint, adaptive segmentation by price and rooms to get past the ~700 depth limit, checkpoints). Yandex is fetched with a headless browser (Playwright): there is no clean HTTP access and offers are rendered by JS. A cron job takes snapshots twice a week, so a price history builds up.
+2. **Cleaning.** Junk filters with a loss log (the report is written to `data/processed/cleaning_report.md`), removal of daily rentals, and the main part: **deduplication of a single flat** posted by several agencies and on both sites at once (736 cross-platform duplicates), by coordinates plus area plus floor.
+3. **Features.** 6 categorical and 42 numeric. Geo: distance to the center and to the train station, minutes to the metro, H3 hexagons. Listing text: renovation, furniture, appliances.
+4. **Model.** A `log(price)` target, CatBoost. Validation includes a spatial split (GroupKFold over hexagons, so the model scores districts it has not seen).
+5. **Interpretation.** SHAP grouped into 6 human-readable factors with contributions in rubles. Prediction intervals via conformal calibration (CQR). An overpricing detector based on the interval.
+6. **Product.** A FastAPI `/predict` service plus my own web front with a form, a price map over H3 hexagons, and a table of the most overpriced listings. Docker Compose on a VPS.
+
+---
+
+## Model ladder
+
+| Model | Validation | MAE, ₽ | MdAPE |
 |---|---|---:|---:|
-| Наивный baseline (медиана ₽/м² по району × комнатность) | holdout (3 054) | 11 770 | 15.8 % |
-| Ridge на числовых признаках | CV | 9 828 | 13.0 % |
-| **CatBoost + гео + текст** | holdout (3 054) | **8 606** | **10.4 %** |
-| CatBoost | пространственный GroupKFold по H3 | 8 830 | 11.5 % |
+| Naive baseline (median ₽/m² per district × room count) | holdout (3,054) | 11,770 | 15.8% |
+| Ridge on numeric features | CV | 9,828 | 13.0% |
+| **CatBoost + geo + text** | holdout (3,054) | **8,606** | **10.4%** |
+| CatBoost | spatial GroupKFold over H3 | 8,830 | 11.5% |
 
-Разрыв между случайным CV (7 976 ₽) и пространственным (8 830 ₽) умеренный — модель
-**обобщает географию**, а не запоминает конкретные гексагоны.
+The gap between random CV (7,976 ₽) and the spatial split (8,830 ₽) is moderate, which
+means the model **generalizes over geography** instead of memorizing specific hexagons.
 
-**Ошибка по сегментам** честно неравномерна: студии — MAE 4 612 ₽, окраины — 5 069 ₽;
-центр и дорогой сегмент — 18–20 тыс. ₽ (там мало данных и огромная дисперсия: соседние
-квартиры на Невском могут стоить вдвое по-разному).
-
----
-
-## Что показали данные
-
-- **Цена лог-нормальна** → обучение на `log(price)` обязательно.
-- **География — сигнал №1:** медианная цена за м² между районами различается в **2.5 раза**; в топе важности признаков — площадь (31 %), расстояние до центра (9.6 %), район, округ.
-- **Метро:** премия за «≤5 минут пешком» — около **15 %** к цене за м².
-- **Собственник vs агент:** медианная цена одинакова, но у собственников выше цена за м².
-- **Ленобласть** (Мурино/Кудрово) дешевле города примерно на **35 %**.
-- **Посудомойка** заметно коррелирует с ценой — и попадает в топ-15 признаков.
-
-Полный разведочный анализ с графиками — в [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb).
+**Error by segment** is honestly uneven: studios sit at MAE 4,612 ₽, the outskirts at
+5,069 ₽; the center and the expensive segment run 18k to 20k ₽ (little data there and huge
+variance, since neighboring flats on Nevsky can cost twice as much as each other).
 
 ---
 
-## Технические решения и trade-offs
+## What the data showed
 
-- **CatBoost, а не нейросеть** — табличные данные, умеренный объём, много категорий (район, метро, тип дома); бустинг здесь оптимален и интерпретируем.
-- **Время до метро берём из объявления ЦИАН**, а не считаем по координатам станций — оно учитывает реальную доступность (реки, ж/д), а не прямую линию.
-- **Против утечек:** дедупликация до train/test-сплита (иначе одна квартира в обеих выборках); target-encoding и медианы по гексагону — только внутри CV-фолдов; исключён `deposit_ratio` (залог ≈ месячная цена → цена в знаменателе).
-- **Интервалы:** сырые квантили CatBoost оказались самоуверенными; конформная калибровка (CQR) на валидации поднимает покрытие. На объединённых данных (ЦИАН + Яндекс) покрытие на holdout — 77 % при цели 80: разнородность источников делает интервалы чуть самоуверенными, это отражено честно, а не подогнано.
-- **Яндекс через headless-браузер, а не HTTP** — обязательный компромисс: gate-API отдаёт пустоту без исполнения JS. Запускается локально, чтобы не мешать другим сервисам на сервере.
+- **Price is log-normal**, so training on `log(price)` is a must.
+- **Geography is signal number one:** the median price per m² differs by **2.5x** between districts; the top of the feature importance list is area (31%), distance to the center (9.6%), district, and okrug.
+- **Metro:** the premium for "5 minutes on foot or less" is about **15%** of the price per m².
+- **Owner vs agent:** the median price is the same, but owners have a higher price per m².
+- **Leningrad Oblast** (Murino, Kudrovo) is about **35%** cheaper than the city.
+- **A dishwasher** correlates noticeably with price and lands in the top 15 features.
 
----
-
-## Ограничения (честно)
-
-- Модель учит **типичную цену рынка** по объявлениям. Если рынок систематически завышен, она этого «перекоса» не видит — это не оценка «абсолютно справедливой» цены, а «типичной для таких квартир».
-- Остаток «факт − предсказание» = ошибка модели **плюс** реальная переплата; разделить их точно нельзя. Поэтому вердикт сформулирован осторожно («выше типичной на N ₽»), а не «вас обманывают». Интервалы предсказания частично решают проблему.
-- Центр и элитный сегмент предсказываются хуже — мало данных, высокая дисперсия.
-- Оценка **текущей** цены, не прогноз будущего. Цены дрейфуют → нужен ре-скрапинг и переобучение (cron уже копит свежие снимки).
-- Апартаменты и посуточная аренда исключены/помечены флагом.
+The full exploratory analysis with charts is in [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb).
 
 ---
 
-## Пример запроса к API
+## Technical decisions and trade-offs
+
+- **CatBoost, not a neural net.** Tabular data, a moderate volume, many categories (district, metro, building type); boosting is optimal and interpretable here.
+- **Metro time is taken from the CIAN listing**, not computed from station coordinates, because it reflects real accessibility (rivers, railways) rather than a straight line.
+- **Against leakage:** deduplication happens before the train/test split (otherwise one flat lands in both sets); target encoding and per-hexagon medians are computed only inside CV folds; `deposit_ratio` is excluded (the deposit is roughly one month's rent, so the price ends up in the denominator).
+- **Intervals:** raw CatBoost quantiles turned out to be overconfident; conformal calibration (CQR) on validation raises coverage. On the combined data (CIAN + Yandex) holdout coverage is 77% against a target of 80: the heterogeneity of the sources makes the intervals slightly overconfident, and this is reported honestly rather than tuned away.
+- **Yandex via a headless browser, not HTTP.** A necessary compromise: the gate API returns nothing without JS execution. It runs locally so it does not interfere with other services on the server.
+
+---
+
+## Limitations (honestly)
+
+- The model learns the **typical market price** from listings. If the market is systematically inflated, it does not see that skew. This is not an estimate of an "absolutely fair" price, it is the "typical price for flats like this".
+- The residual "actual minus predicted" is model error **plus** real overpayment; the two cannot be separated exactly. That is why the verdict is worded carefully ("above typical by N ₽") rather than "you are being ripped off". Prediction intervals partly solve this.
+- The center and the premium segment are predicted worse: little data, high variance.
+- This estimates the **current** price, not a forecast of the future. Prices drift, so re-scraping and retraining are needed (the cron job is already accumulating fresh snapshots).
+- Apart-hotels and daily rentals are excluded or flagged.
+
+---
+
+## Example API request
 
 ```bash
 curl -X POST https://arenda-spb.vercel.app/api/predict -H "Content-Type: application/json" \
@@ -121,69 +121,70 @@ curl -X POST https://arenda-spb.vercel.app/api/predict -H "Content-Type: applica
 
 ---
 
-## Запуск
+## Running it
 
-> Сырые данные в репозитории не публикуются, поэтому шаги 2–3 воспроизводимы
-> только после собственного сбора данных (шаг 1).
+> Raw data is not published in the repo, so steps 2 and 3 are reproducible only after
+> collecting your own data (step 1).
 
 ```bash
 pip install -r requirements.txt
 
-# 1) сбор данных ЦИАН (перезапускаемый, чекпоинты по сегментам)
-python -m src.scraping.run probe        # проверка API
-python -m src.scraping.run collect       # полный сбор
+# 1) collect CIAN data (restartable, checkpoints per segment)
+python -m src.scraping.run probe         # check the API
+python -m src.scraping.run collect        # full collection
 
-# 2) чистка → признаки → обучение
+# 2) clean -> features -> train
 python -m src.cleaning.clean
 python -m src.features.build
-python -m src.models.train --stage all   # baseline → ridge → catboost
-python -m src.models.quantiles           # интервалы (CQR)
-python -m src.models.explain scan        # скан рынка + детектор переплаты
+python -m src.models.train --stage all    # baseline -> ridge -> catboost
+python -m src.models.quantiles            # intervals (CQR)
+python -m src.models.explain scan         # market scan + overpricing detector
 
-# 3) приложение
+# 3) the app
 python -m src.app.prepare_assets
-docker compose up --build                # API :8000 + дашборд :8501
+docker compose up --build                 # API :8000 + dashboard :8501
 ```
 
-Второй источник (Яндекс, headless-браузер, локально):
+The second source (Yandex, headless browser, local):
 ```bash
-bash deploy/collect_yandex.sh            # Playwright, сегментированный сбор
+bash deploy/collect_yandex.sh             # Playwright, segmented collection
 ```
 
-### Продакшен
+### Production
 
-Публичная версия: **https://arenda-spb.vercel.app** — статический фронт
-с предрассчитанными данными на CDN Vercel; `/api/predict` проксируется
-serverless-функцией (`web/api/predict.js`) на VPS с моделью.
+The public version at **https://arenda-spb.vercel.app** is a static front with
+precomputed data on the Vercel CDN; `/api/predict` is proxied by a serverless
+function (`web/api/predict.js`) to a VPS that holds the model.
 
 ```bash
-# пересобрать web/ (нужен локальный сервер на :8501) и задеплоить
+# rebuild web/ (needs a local server on :8501) and deploy
 bash deploy/build_web.sh
 cd web && npx vercel deploy --prod
 ```
 
 SEO: title/description, Open Graph (`static/og.png`), JSON-LD
-(WebApplication + FAQPage), robots.txt, sitemap.xml, видимый FAQ-блок.
+(WebApplication + FAQPage), robots.txt, sitemap.xml, and a visible FAQ block.
 
 ---
 
-## Стек
+## Stack
 
 Python · `curl_cffi` · Playwright · pandas · **CatBoost** · SHAP · scikit-learn (CQR) ·
 H3 · FastAPI · MapLibre GL + H3 · Docker Compose · SQLite/Parquet
 
-## Структура
+## Structure
 
 ```
-src/scraping/   сбор: ЦИАН (API) и Яндекс (headless), хранилище, CLI
-src/cleaning/   фильтры мусора + дедупликация с логом потерь
-src/features/   гео- и текстовые признаки, build_features()
-src/models/     train, quantiles (CQR), explain (SHAP + детектор переплаты)
-src/app/        FastAPI /predict + веб-фронт (форма, карта, скан рынка)
-notebooks/      01_eda.ipynb — разведочный анализ с графиками
-tests/          юнит-тесты парсера и признаков
+src/scraping/   collection: CIAN (API) and Yandex (headless), storage, CLI
+src/cleaning/   junk filters + deduplication with a loss log
+src/features/   geo and text features, build_features()
+src/models/     train, quantiles (CQR), explain (SHAP + overpricing detector)
+src/app/        FastAPI /predict + web front (form, map, market scan)
+notebooks/      01_eda.ipynb, exploratory analysis with charts
+tests/          unit tests for the parser and features
 ```
 
 ---
 
-*Все метрики получены на реальных данных; сырые данные не публикуются, сбор — в образовательных целях.*
+*All metrics come from real data; raw data is not published, and collection is for
+educational purposes.*

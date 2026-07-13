@@ -1,6 +1,6 @@
-// Прокси к модельному API: страница на https не может ходить на http-VPS
-// напрямую (mixed content), поэтому запрос идёт через serverless-функцию.
-// Адрес сервера задаётся переменной окружения MODEL_API_URL в настройках Vercel.
+// Proxy to the model API: an https page cannot call an http VPS directly
+// (mixed content), so the request goes through a serverless function.
+// The server address is set by the MODEL_API_URL env var in the Vercel settings.
 const API_URL = process.env.MODEL_API_URL;
 
 function normalizeInterval(data) {

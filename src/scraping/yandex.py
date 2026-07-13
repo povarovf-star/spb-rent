@@ -1,16 +1,16 @@
-"""Скрапер Яндекс.Недвижимости через headless-браузер (запуск на Маке).
+"""Yandex.Realty scraper via a headless browser (runs on the Mac).
 
-Двухфазная схема (чистого HTTP-доступа нет — оферы рендерит JS):
-  Фаза 1 (SERP): пагинация выдачи, сбор id оферов (46/страница);
-  Фаза 2 (карточка): заход на /offer/<id>/, извлечение полей из <title>
-     и координат из URL статической карты (latitude=..&longitude=..).
+Two-phase scheme (there is no clean HTTP access, offers are rendered by JS):
+  Phase 1 (SERP): paginate the search, collect offer ids (46/page);
+  Phase 2 (card): open /offer/<id>/, extract fields from <title>
+     and coordinates from the static map URL (latitude=..&longitude=..).
 
-Нормализуем в ОБЩУЮ схему проекта (как у ЦИАН) с source='yandex'.
-Пишем в тот же SQLite, что и ЦИАН (мультиисточник по колонке source).
+Normalized into the project's SHARED schema (same as CIAN) with source='yandex'.
+Written to the same SQLite as CIAN (multi-source via the source column).
 
-Запуск на Маке:
-    .venv_mac/bin/python -m src.scraping.yandex serp     --pages 3     # собрать id
-    .venv_mac/bin/python -m src.scraping.yandex offers   --limit 30    # добрать поля
+Running on the Mac:
+    .venv_mac/bin/python -m src.scraping.yandex serp     --pages 3     # collect ids
+    .venv_mac/bin/python -m src.scraping.yandex offers   --limit 30    # fill in fields
 """
 from __future__ import annotations
 
@@ -27,11 +27,11 @@ BASE = "https://realty.yandex.ru"
 SERP = BASE + "/sankt-peterburg/snyat/kvartira/"
 DB_PATH = "data/yandex.sqlite"
 
-# Выдача Яндекса, как и ЦИАН, ограничивает глубину ~600 уникальных на запрос
-# и перетасовывает пул. Поэтому дробим рынок на сегменты (комнаты × цена),
-# каждый < порога, и обходим каждый отдельно.
-SERP_CAP = 500                     # порог: сегмент крупнее — делим по цене
-MAX_PAGES = 30                     # страхуемся от бесконечной пагинации
+# Yandex search, like CIAN, caps depth at ~600 unique per query and reshuffles
+# the pool. So the market is split into segments (rooms × price), each below the
+# threshold, and each is crawled separately.
+SERP_CAP = 500                     # threshold: a larger segment is split by price
+MAX_PAGES = 30                     # guard against infinite pagination
 ROOM_PATHS = [
     "studiya", "odnokomnatnaya", "dvuhkomnatnaya",
     "tryohkomnatnaya", "4-i-bolee-komnatnie",
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS yandex_offers (
     offer_id   TEXT PRIMARY KEY,
     snapshot_date TEXT,
     price      INTEGER,
-    rooms      INTEGER,       -- 0 = студия
+    rooms      INTEGER,       -- 0 = studio
     flat_type  TEXT,
     total_area REAL,
     floor      INTEGER,
@@ -64,8 +64,9 @@ CREATE TABLE IF NOT EXISTS yandex_offers (
 );
 """
 
-# --- парсинг заголовка карточки ---
-# "Снять 2-комнатную квартиру 54 м², 5 этаж из 9, за 45 000 ₽ в месяц — ..."
+# --- parsing the card title ---
+# example titles the regexes below match:
+# "Снять 2-комнатную квартиру 54 м², 5 этаж из 9, за 45 000 ₽ в месяц ..."
 # "Снять квартиру-студию 24 м², 4 этаж из 18, за 64 000 ₽ ..."
 RE_ROOMS = re.compile(r"(\d+)-комнат")
 RE_STUDIO = re.compile(r"студи", re.I)
@@ -105,20 +106,20 @@ def parse_coords(html: str) -> tuple[float | None, float | None]:
 def db() -> sqlite3.Connection:
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA busy_timeout=30000")  # не падать при параллельной фазе 2
+    conn.execute("PRAGMA busy_timeout=30000")  # do not crash during a parallel phase 2
     conn.executescript(SCHEMA)
     return conn
 
 
 def _title_count(page) -> int:
-    """Число объявлений из заголовка выдачи (учёт неразрывных пробелов)."""
+    """Number of listings from the search title (handles non-breaking spaces)."""
     m = re.search(r"([\d\s  ]+)\s*объявлени", page.title())
     digits = re.sub(r"\D", "", m.group(1)) if m else ""
     return int(digits) if digits else -1
 
 
 def _collect_segment_ids(page, url_base: str) -> set[str]:
-    """Пагинация + скролл внутри одного сегмента, сбор id оферов."""
+    """Pagination + scroll within one segment, collecting offer ids."""
     ids: set[str] = set()
     for pg in range(1, MAX_PAGES + 1):
         sep = "&" if "?" in url_base else "?"
@@ -138,7 +139,7 @@ def _collect_segment_ids(page, url_base: str) -> set[str]:
                 break
             page.mouse.wheel(0, 4000)
             page.wait_for_timeout(1000)
-        if len(ids) == before_page:      # страница не дала ничего нового — конец
+        if len(ids) == before_page:      # the page gave nothing new, stop
             break
     return ids
 
@@ -148,11 +149,11 @@ def _segment_url(room: str, lo: int, hi: int) -> str:
 
 
 def cmd_serp(pages: int = 0) -> None:
-    """Сегментированный сбор id: комнаты × ценовые полосы с адаптивным делением.
+    """Segmented id collection: rooms × price bands with adaptive splitting.
 
-    Если в сегменте объявлений больше SERP_CAP — полосу делим пополам
-    (иначе выдача не отдаст всё из-за потолка глубины). Аргумент pages
-    не используется (оставлен для совместимости CLI).
+    If a segment holds more than SERP_CAP listings, the band is split in half
+    (otherwise the search will not return everything because of the depth cap).
+    The pages argument is unused (kept for CLI compatibility).
     """
     from collections import deque
 
@@ -173,7 +174,7 @@ def cmd_serp(pages: int = 0) -> None:
                 mid = (lo + hi) // 2
                 queue.append((room, lo, mid))
                 queue.append((room, mid + 1, hi))
-                print(f"[{room} {lo}-{hi}] ~{cnt} > {SERP_CAP} — делю пополам")
+                print(f"[{room} {lo}-{hi}] ~{cnt} > {SERP_CAP}, splitting in half")
                 continue
             ids = _collect_segment_ids(page, url)
             seg_new = 0
@@ -184,11 +185,11 @@ def cmd_serp(pages: int = 0) -> None:
                 seg_new += cur.rowcount
             conn.commit()
             total_new += seg_new
-            print(f"[{room} {lo}-{hi}] ~{cnt} в сегменте, собрано {len(ids)} id, "
-                  f"+{seg_new} новых, всего {total_new}")
+            print(f"[{room} {lo}-{hi}] ~{cnt} in the segment, collected {len(ids)} ids, "
+                  f"+{seg_new} new, total {total_new}")
             time.sleep(1.0)
         browser.close()
-    print(f"итого id в базе: {conn.execute('SELECT COUNT(*) FROM yandex_ids').fetchone()[0]}")
+    print(f"total ids in the database: {conn.execute('SELECT COUNT(*) FROM yandex_ids').fetchone()[0]}")
 
 
 def cmd_offers(limit: int) -> None:
@@ -198,7 +199,7 @@ def cmd_offers(limit: int) -> None:
         "SELECT offer_id FROM yandex_ids WHERE fetched=0 LIMIT ?", (limit,)
     ).fetchall()
     if not rows:
-        print("нет несобранных id — сначала запусти serp")
+        print("no uncollected ids, run serp first")
         return
     ok = 0
     with sync_playwright() as p:
@@ -228,11 +229,11 @@ def cmd_offers(limit: int) -> None:
             conn.commit()
             if fields["price"] and lat:
                 ok += 1
-            print(f"  {oid}: {fields['rooms']}к {fields['total_area']}м² "
-                  f"{fields['price']}₽ @ ({lat},{lon})")
+            print(f"  {oid}: {fields['rooms']}r {fields['total_area']}m2 "
+                  f"{fields['price']}RUB @ ({lat},{lon})")
             time.sleep(1.0)
         browser.close()
-    print(f"собрано полей: {ok}/{len(rows)} с ценой и координатами")
+    print(f"fields collected: {ok}/{len(rows)} with price and coordinates")
 
 
 def main() -> None:

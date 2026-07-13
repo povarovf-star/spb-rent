@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
-# Собирает статическую версию сайта для Vercel в web/:
-# фронтенд из src/app/static + предрассчитанные JSON-данные.
-# Требует запущенный локальный сервер: uvicorn src.app.site:app --port 8501
-# Запуск из корня проекта:  bash deploy/build_web.sh
+# Builds the static version of the site for Vercel into web/:
+# the frontend from src/app/static + precomputed JSON data.
+# Requires a running local server: uvicorn src.app.site:app --port 8501
+# Run from the project root:  bash deploy/build_web.sh
 set -euo pipefail
 
 SITE_URL="${SITE_URL:-http://127.0.0.1:8501}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WEB="$ROOT/web"
 
-echo "==> Копирую фронтенд..."
+echo "==> Copying the frontend..."
 mkdir -p "$WEB/static" "$WEB/data"
 cp "$ROOT/src/app/static/index.html" "$WEB/index.html"
 cp "$ROOT"/src/app/static/*.css "$ROOT"/src/app/static/*.js "$WEB/static/"
 cp "$ROOT"/src/app/static/*.png "$ROOT"/src/app/static/*.svg "$WEB/static/"
 
-echo "==> Выгружаю данные из $SITE_URL..."
+echo "==> Downloading data from $SITE_URL..."
 curl -sf "$SITE_URL/api/assets" -o "$WEB/data/assets.json"
 curl -sf "$SITE_URL/api/map" -o "$WEB/data/map.json"
 for verdict in overpriced suspicious_cheap fair; do
     curl -sf "$SITE_URL/api/scan?verdict=$verdict&limit=60" -o "$WEB/data/scan-$verdict.json"
 done
 
-echo "==> Сжимаю map.json (координаты до ~1 м, только нужные клиенту поля)..."
+echo "==> Compressing map.json (coordinates to ~1 m, only client-needed fields)..."
 python3 - "$WEB/data/map.json" <<'PYEOF'
 import json, sys
 
@@ -43,6 +43,6 @@ for feature in data["features"]:
 json.dump(data, open(path, "w"), ensure_ascii=False, separators=(",", ":"))
 PYEOF
 
-echo "==> Готово:"
+echo "==> Done:"
 du -sh "$WEB"
-echo "Деплой:  cd web && vercel deploy --prod"
+echo "Deploy:  cd web && vercel deploy --prod"

@@ -1,10 +1,10 @@
-"""Готовит статические ассеты приложения из обработанных данных.
+"""Prepares the app's static assets from the processed data.
 
-- app_assets.json: справочники (районы с центроидами, станции метро,
-  типы домов) + дефолты признаков (медианы) + диапазоны валидации формы;
-- map_hex.parquet: агрегаты по H3-гексагонам для карты цен.
+- app_assets.json: lookups (districts with centroids, metro stations,
+  building types) + feature defaults (medians) + form validation ranges;
+- map_hex.parquet: H3 hexagon aggregates for the price map.
 
-Запуск: python -m src.app.prepare_assets  (после explain scan)
+Run: python -m src.app.prepare_assets  (after explain scan)
 """
 
 from __future__ import annotations
@@ -17,9 +17,9 @@ import pandas as pd
 
 OUT = Path("data/processed")
 
-# Разрешение H3 для КАРТЫ (не для модели). res 8 (~0.7 км²) даёт слишком
-# мелкие гексагоны — 976 штук по ~7 оферов, город в дырах. res 7 (~5 км²)
-# укрупняет до ~300 плотных ячеек, весь СПб закрашивается.
+# H3 resolution for the MAP (not the model). res 8 (~0.7 km2) gives hexagons
+# that are too small: 976 of them with ~7 offers each, the city full of holes.
+# res 7 (~5 km2) coarsens to ~300 dense cells, and all of SPb gets filled in.
 MAP_H3_RES = 7
 MAP_MIN_OFFERS = 1
 
@@ -47,7 +47,7 @@ def main() -> None:
             "living_area_ratio": float((df["living_area"] / df["total_area"]).median()),
             "kitchen_area_ratio": float((df["kitchen_area"] / df["total_area"]).median()),
         },
-        "form_ranges": {  # валидация ввода диапазонами train-данных
+        "form_ranges": {  # input validation by train-data ranges
             "total_area": [float(df["total_area"].quantile(0.005)),
                             float(df["total_area"].quantile(0.995))],
             "price_typical": [float(df["price"].quantile(0.05)),
@@ -57,8 +57,8 @@ def main() -> None:
     (OUT / "app_assets.json").write_text(
         json.dumps(assets, ensure_ascii=False, indent=1))
 
-    # карта: медианная цена/м² и число объявлений по гексагонам
-    # карта: агрегаты по укрупнённым H3-гексагонам (res 7) из координат
+    # map: median price/m2 and listing count per hexagon,
+    # aggregated over coarser H3 hexagons (res 7) from coordinates
     g = df.dropna(subset=["lat", "lon"]).copy()
     g["price_per_m2"] = g["price"] / g["total_area"]
     g["h3_map"] = [h3.latlng_to_cell(la, lo, MAP_H3_RES)
@@ -69,14 +69,14 @@ def main() -> None:
              price_median=("price", "median"), n=("price", "size"),
              lat=("lat", "median"), lon=("lon", "median"))
         .query("n >= @MAP_MIN_OFFERS").reset_index()
-        .rename(columns={"h3_map": "h3_08"})  # ключ оставляем 'h3_08' для фронта
+        .rename(columns={"h3_map": "h3_08"})  # keep the 'h3_08' key for the front
     )
     hex_agg["ppm2"] = hex_agg["ppm2"].round(0)
     hex_agg["price_median"] = hex_agg["price_median"].round(-2)
     hex_agg.to_parquet(OUT / "map_hex.parquet", index=False)
-    print(f"районов: {len(districts)}, метро: {len(metros)}, "
-          f"гексагонов на карте (res {MAP_H3_RES}): {len(hex_agg)}, "
-          f"оферов покрыто: {int(hex_agg['n'].sum())}, макс/гекс: {int(hex_agg['n'].max())}")
+    print(f"districts: {len(districts)}, metros: {len(metros)}, "
+          f"map hexagons (res {MAP_H3_RES}): {len(hex_agg)}, "
+          f"offers covered: {int(hex_agg['n'].sum())}, max/hex: {int(hex_agg['n'].max())}")
 
 
 if __name__ == "__main__":

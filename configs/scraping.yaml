@@ -1,20 +1,20 @@
-# Параметры сбора данных с ЦИАН
-# Запуск: python -m src.scraping.run collect --config configs/scraping.yaml
+# CIAN data collection parameters
+# Run: python -m src.scraping.run collect --config configs/scraping.yaml
 
 db_path: data/cian.sqlite
 raw_dir: data/raw
 
-# Регионы ЦИАН: 2 = Санкт-Петербург, 4588 = Ленинградская область
-# (ЛО включаем ради Мурино/Кудрово/Девяткино; фильтр по удалённости сделаем на этапе чистки)
+# CIAN regions: 2 = St. Petersburg, 4588 = Leningrad Oblast
+# (the oblast is included for Murino/Kudrovo/Devyatkino; the distance filter is applied during cleaning)
 regions:
   spb: 2
   lenobl: 4588
 
-# Типы комнатности в jsonQuery ЦИАН: 1..6 = число комнат, 9 = студия, 7 = свободная планировка
+# Room types in the CIAN jsonQuery: 1..6 = number of rooms, 9 = studio, 7 = open plan
 rooms: [1, 2, 3, 4, 5, 6, 7, 9]
 
-# Стартовые ценовые полосы, ₽/мес. Если в сегменте больше max_offers_per_segment,
-# полоса автоматически делится пополам (адаптивная сегментация).
+# Starting price bands, RUB/mo. If a segment holds more than max_offers_per_segment,
+# the band is split in half automatically (adaptive segmentation).
 price_bands:
   - [1, 25000]
   - [25000, 35000]
@@ -23,12 +23,12 @@ price_bands:
   - [80000, 150000]
   - [150000, 1000000]
 
-# Антибот-вежливость
+# Antibot politeness
 min_delay_sec: 3.0
 max_delay_sec: 8.0
-max_pages_per_segment: 54      # страховочный потолок пагинации
-# Эмпирика (замер 02.07.2026): API ЦИАН отдаёт максимум ~700 объявлений
-# (~25 страниц) на запрос независимо от totalCount. Порог ниже этого лимита:
-max_offers_per_segment: 620    # порог для деления ценовой полосы
-# proxy: "http://user:pass@host:port"   # раскомментируй при необходимости
+max_pages_per_segment: 54      # safety cap on pagination
+# Empirical (measured 2026-07-02): the CIAN API returns at most ~700 listings
+# (~25 pages) per query regardless of totalCount. The threshold sits below this limit:
+max_offers_per_segment: 620    # threshold for splitting a price band
+# proxy: "http://user:pass@host:port"   # uncomment if needed
 proxy: null

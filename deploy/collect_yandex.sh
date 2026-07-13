@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# Полный сбор Яндекс.Недвижимости на Маке через headless-браузер.
-# Запускать НА МАКЕ (не на сервере — там мало RAM и рядом торговый бот).
-# Рекомендуется в tmux, т.к. занимает несколько часов:
+# Full Yandex.Realty collection on the Mac via a headless browser.
+# Run ON THE MAC (not on the server, which has little RAM and a trading bot next to it).
+# Recommended in tmux, since it takes several hours:
 #   tmux new -s yandex 'bash deploy/collect_yandex.sh'
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY=.venv_mac/bin/python
 
-# Фаза 1: сегментированный сбор id (комнаты × ценовые полосы с делением).
-# Обходит потолок глубины выдачи (~600/запрос) → до ~4-5 тыс. уникальных id.
-echo "== Фаза 1: сбор id (сегменты) =="
+# Phase 1: segmented id collection (rooms × price bands with splitting).
+# Gets past the search depth cap (~600/query), up to ~4-5k unique ids.
+echo "== Phase 1: id collection (segments) =="
 $PY -m src.scraping.yandex serp
 
-# Фаза 2: добор полей + координат по всем несобранным id (по одной карточке).
-# Идёт долго (~1 стр./4 сек). Перезапускаемо: собирает только fetched=0.
-echo "== Фаза 2: карточки оферов =="
+# Phase 2: fill in fields + coordinates for all uncollected ids (one card at a time).
+# Slow (~1 page/4 sec). Restartable: only fetched=0 are collected.
+echo "== Phase 2: offer cards =="
 $PY -m src.scraping.yandex offers --limit 100000
 
-echo "Готово. Данные в data/yandex.sqlite (source='yandex')."
+echo "Done. Data in data/yandex.sqlite (source='yandex')."

@@ -1,10 +1,10 @@
-"""FastAPI: модель как сервис.
+"""FastAPI: the model as a service.
 
-POST /predict — параметры квартиры -> справедливая цена, интервал,
-факторы (₽), вердикт по фактической цене (если передана).
-GET /health — статус и версия модели.
+POST /predict takes flat parameters and returns the fair price, the interval,
+the factors (RUB), and a verdict on the actual price (if provided).
+GET /health returns the status and model version.
 
-Запуск: uvicorn src.app.api:app --host 0.0.0.0 --port 8000
+Run: uvicorn src.app.api:app --host 0.0.0.0 --port 8000
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ app = FastAPI(title="SPb Rent — справедливая цена аренды
 
 class PredictRequest(BaseModel):
     district: str = Field(examples=["Калининский"])
-    rooms: int = Field(ge=0, le=6, description="0 = студия")
+    rooms: int = Field(ge=0, le=6, description="0 = studio")
     total_area: float = Field(gt=5, lt=300)
     floor: int = Field(ge=1, le=60)
     floors_total: int = Field(ge=1, le=60)
@@ -48,7 +48,7 @@ class PredictRequest(BaseModel):
     renov_euro: bool = False
     balcony: bool = False
     actual_price: float | None = Field(default=None, gt=0,
-                                       description="для вердикта о переплате")
+                                       description="used for the overpricing verdict")
 
 
 @app.get("/health")

@@ -1,14 +1,14 @@
-"""Обучение: лестница моделей baseline → Ridge → CatBoost.
+"""Training: a model ladder baseline -> Ridge -> CatBoost.
 
-Дизайн:
-- target = log(price), метрики в рублях после exp;
-- скам-флаги (is_suspicious_cheap) исключены из train и eval;
-- holdout 20% — финальные цифры; 5-fold CV — устойчивость;
-- GroupKFold по h3_08 — проверка пространственного обобщения
-  (модель оценивает гексагоны, которых не видела);
-- сегментный разбор ошибки: комнатность, удалённость, ценовой терцил.
+Design:
+- target = log(price), metrics in rubles after exp;
+- scam flags (is_suspicious_cheap) are excluded from train and eval;
+- a 20% holdout gives the final numbers; 5-fold CV gives stability;
+- GroupKFold over h3_08 checks spatial generalization
+  (the model scores hexagons it has not seen);
+- a per-segment error breakdown: room count, distance, price tertile.
 
-Запуск: python -m src.models.train  (артефакты в models/)
+Run: python -m src.models.train  (artifacts in models/)
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def metrics_rub(y_true_log: np.ndarray, y_pred_log: np.ndarray) -> dict:
     }
 
 
-# ---------- baseline: медиана ₽/м² по (район × комнатность) ----------
+# ---------- baseline: median RUB/m2 per (district × room count) ----------
 
 class MedianBaseline:
     def fit(self, df: pd.DataFrame, y_log: pd.Series):
@@ -65,7 +65,7 @@ class MedianBaseline:
         return np.log(ppm2.values * df["total_area"].values)
 
 
-# ---------- Ridge на числовых ----------
+# ---------- Ridge on numeric features ----------
 
 def ridge_cv_mae(df: pd.DataFrame, y_log: pd.Series) -> dict:
     X = df[NUM_FEATURES].fillna(df[NUM_FEATURES].median())
@@ -105,11 +105,11 @@ def segment_report(df: pd.DataFrame, y_log, y_pred_log) -> pd.DataFrame:
     d["ape"] = d["abs_err"] / np.exp(y_log)
     d["rooms_cat"] = np.select(
         [d.is_studio == 1, d.rooms_n == 1, d.rooms_n == 2, d.rooms_n == 3],
-        ["студия", "1", "2", "3"], default="4+")
+        ["studio", "1", "2", "3"], default="4+")
     d["zone"] = np.select(
         [d.dist_center_km <= 5, d.dist_center_km <= 12],
-        ["центр (≤5 км)", "середина (5–12)"], default="окраина (12+)")
-    d["price_tier"] = pd.qcut(np.exp(y_log), 3, labels=["дёшево", "средне", "дорого"])
+        ["center (<=5 km)", "middle (5-12)"], default="outskirts (12+)")
+    d["price_tier"] = pd.qcut(np.exp(y_log), 3, labels=["cheap", "mid", "expensive"])
     rows = []
     for col in ["rooms_cat", "zone", "price_tier"]:
         g = d.groupby(col, observed=True).agg(
@@ -132,7 +132,7 @@ def _load_split():
 
 
 def _merge_metrics(update: dict) -> dict:
-    """Стадии запускаются отдельными процессами — метрики копятся в json."""
+    """Stages run as separate processes, so metrics accumulate in json."""
     MODELS_DIR.mkdir(exist_ok=True)
     path = MODELS_DIR / "metrics.json"
     results = json.loads(path.read_text()) if path.exists() else {}
@@ -189,9 +189,9 @@ def main() -> None:
 
         print(json.dumps(json.loads((MODELS_DIR / "metrics.json").read_text()),
                          indent=2, ensure_ascii=False))
-        print("\n--- сегменты (holdout) ---")
+        print("\n--- segments (holdout) ---")
         print(seg.to_string())
-        print("\n--- топ-15 признаков ---")
+        print("\n--- top 15 features ---")
         print(imp.head(15).round(2).to_string())
 
 

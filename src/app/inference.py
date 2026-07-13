@@ -1,8 +1,8 @@
-"""Из пользовательского ввода — в вектор признаков модели.
+"""From user input to the model's feature vector.
 
-Пользователь заполняет ~10 полей формы; остальные признаки заполняются
-нейтральными дефолтами (медианы train), чтобы не сигналить модели
-«плохое объявление» нулями.
+The user fills in about 10 form fields; the remaining features are filled with
+neutral defaults (train medians), so that zeros do not signal a "bad listing"
+to the model.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ ASSETS_PATH = Path("data/processed/app_assets.json")
 @dataclass
 class FlatInput:
     district: str
-    rooms: int                    # 0 = студия
+    rooms: int                    # 0 = studio
     total_area: float
     floor: int
     floors_total: int
@@ -41,7 +41,7 @@ class FlatInput:
     furnished: bool = True
     renov_euro: bool = False
     balcony: bool = False
-    lat: float | None = None      # если нет — центроид района
+    lat: float | None = None      # if absent, the district centroid
     lon: float | None = None
 
 
@@ -55,19 +55,19 @@ def features_from_input(inp: FlatInput, assets: dict) -> pd.DataFrame:
     if lat is None or lon is None:
         c = assets["districts"].get(inp.district)
         if c is None:
-            raise ValueError(f"неизвестный район: {inp.district}")
+            raise ValueError(f"unknown district: {inp.district}")
         lat, lon = c["lat"], c["lon"]
 
     lat_s, lon_s = pd.Series([lat]), pd.Series([lon])
     row = {
-        # категориальные
+        # categorical
         "district": inp.district,
         "okrug": "unknown",
         "metro_name": inp.metro_name,
         "material_type": inp.material_type,
         "flat_type": "studio" if inp.rooms == 0 else "rooms",
         "h3_08": h3.latlng_to_cell(lat, lon, H3_RESOLUTION) if h3 else "unknown",
-        # квартира
+        # flat
         "total_area": inp.total_area,
         "living_area": inp.total_area * d["living_area_ratio"],
         "kitchen_area": inp.total_area * d["kitchen_area_ratio"],
@@ -79,7 +79,7 @@ def features_from_input(inp: FlatInput, assets: dict) -> pd.DataFrame:
         "floor_last": int(inp.floor == inp.floors_total),
         "floor_ratio": min(max(inp.floor / max(inp.floors_total, 1), 0), 1),
         "building_age": (2026 - inp.build_year) if inp.build_year else None,
-        # гео
+        # geo
         "dist_center_km": float(haversine_km(lat_s, lon_s, *DVORTSOVAYA).iloc[0]),
         "dist_moscow_st_km": float(haversine_km(lat_s, lon_s, *MOSCOW_STATION).iloc[0]),
         "metro_walk_min": inp.metro_walk_min,
@@ -87,12 +87,12 @@ def features_from_input(inp: FlatInput, assets: dict) -> pd.DataFrame:
         "is_lenobl": 0,
         "is_apartments": int(inp.is_apartments),
         "is_by_homeowner": int(inp.is_by_homeowner),
-        # условия/качество: нейтральные дефолты
+        # terms/quality: neutral defaults
         "photos_count": d["photos_count"],
         "no_deposit": 0,
         "utilities_included": 0,
         "no_client_fee": int(inp.is_by_homeowner),
-        # текстовые признаки из чекбоксов, остальные 0
+        # text features from checkboxes, the rest are 0
         "renov_euro": int(inp.renov_euro),
         "renov_cosmetic": 0, "renov_needed": 0,
         "furnished": int(inp.furnished), "unfurnished": int(not inp.furnished),
@@ -105,5 +105,5 @@ def features_from_input(inp: FlatInput, assets: dict) -> pd.DataFrame:
     df = pd.DataFrame([row])
     missing = set(CAT_FEATURES + NUM_FEATURES) - set(df.columns)
     if missing:
-        raise RuntimeError(f"не заполнены признаки: {missing}")
+        raise RuntimeError(f"features not filled: {missing}")
     return df

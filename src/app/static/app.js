@@ -109,7 +109,7 @@ function prefetchMapData() {
 }
 
 function prefetchTab(tab) {
-  // тёплый старт по наведению: к моменту клика карта и данные уже в пути
+  // warm start on hover: by the time of the click, the map and data are on the way
   if (tab === "map") {
     loadMapLibre();
     prefetchMapData();
@@ -217,8 +217,8 @@ function bindForm() {
   });
 }
 
-// спокойный подсчёт цены: сначала синхронно пишем итог (работает всегда),
-// затем короткая анимация как прогрессивное улучшение поверх
+// calm price counting: first write the final value synchronously (always works),
+// then a short animation as progressive enhancement on top
 function animateRub(id, target) {
   const node = document.getElementById(id);
   if (!node) return;
@@ -246,7 +246,7 @@ function renderResult(result) {
   content.hidden = false;
   if (firstRender && !reducedMotion.matches) {
     content.classList.remove("is-entering");
-    void content.offsetWidth; // перезапуск CSS-анимации появления
+    void content.offsetWidth; // restart the CSS reveal animation
     content.classList.add("is-entering");
   }
 
@@ -259,7 +259,7 @@ function renderResult(result) {
   if (delta) {
     const deltaValue = result.delta_vs_fair;
     delta.textContent = deltaValue !== undefined && deltaValue !== null ? signedRub(deltaValue) : "—";
-    // подсвечиваем разницу только когда вердикт действительно тревожный
+    // highlight the delta only when the verdict is actually alarming
     delta.className = "";
     if (result.verdict === "overpriced") delta.classList.add("is-over");
     if (result.verdict === "suspicious_cheap") delta.classList.add("is-under");
@@ -316,15 +316,15 @@ function renderFactors(factors) {
     `;
     list.append(row);
     const fill = row.querySelector(".factor-fill");
-    // синхронный reflow фиксирует width:0, transition дорисует бар до цели;
-    // без requestAnimationFrame — он не тикает в фоновых вкладках
+    // a synchronous reflow locks in width:0, then the transition draws the bar to target;
+    // requestAnimationFrame is avoided because it does not tick in background tabs
     void fill.offsetWidth;
     fill.style.width = `${width}%`;
   });
 }
 
-// MapLibre (~250 КБ) загружается только при первом открытии карты,
-// чтобы не тормозить главный экран проверки цены
+// MapLibre (~250 KB) is loaded only when the map is first opened,
+// so it does not slow down the main price-check screen
 function loadMapLibre() {
   if (window.maplibregl) return Promise.resolve();
   if (state.maplibrePromise) return state.maplibrePromise;
@@ -353,8 +353,8 @@ async function ensureMap() {
     setText("map-count", rub(state.mapData.meta.count, ""));
     if (!window.maplibregl) throw new Error("MapLibre не загружен");
     state.map = new maplibregl.Map({
-      // Voyager: OSM-данные с улицами и подписями районов — «карта местности»
-      // читается лучше, чем бледный Positron, но остаётся светлой под гексагонами
+      // Voyager: OSM data with streets and district labels reads better as a
+      // "map of the area" than the pale Positron, while staying light under the hexagons
       container: "price-map",
       style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
       center: defaultMapView.center,
@@ -372,8 +372,8 @@ async function ensureMap() {
         paint: {
           "fill-color": mapColorExpression("ppm2"),
           "fill-color-transition": { duration: 250 },
-          // плотная заливка, чтобы весь город читался как тепловая карта;
-          // ярче при наведении, но улицы Voyager всё ещё просвечивают
+          // dense fill so the whole city reads as a heat map;
+          // brighter on hover, but the Voyager streets still show through
           "fill-opacity": [
             "case", ["boolean", ["feature-state", "hover"], false], 0.9, 0.72,
           ],
@@ -415,7 +415,7 @@ function resizeMapSoon(resetView = false) {
 
 function mapColorExpression(metric) {
   const meta = state.mapData?.meta?.[metric] || { low: 0, high: 1 };
-  // тёплая шкала в палитре продукта: светлая охра -> терракота -> обожжённая глина
+  // warm scale in the product palette: light ochre -> terracotta -> burnt clay
   return [
     "interpolate",
     ["linear"],

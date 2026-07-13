@@ -1,4 +1,4 @@
-"""Тесты feature-пайплайна."""
+"""Tests for the feature pipeline."""
 
 import numpy as np
 import pandas as pd
@@ -9,7 +9,7 @@ from src.features.build import build_features, CAT_FEATURES, NUM_FEATURES
 
 
 def test_haversine_known_distance():
-    # Дворцовая -> Московский вокзал ≈ 2.8 км
+    # Palace Square -> Moskovsky station ~ 2.8 km
     d = haversine_km(pd.Series([59.9390]), pd.Series([30.3158]), 59.9298, 30.3623)
     assert 2.0 < d.iloc[0] < 3.5
 
@@ -58,15 +58,15 @@ def test_build_features_shapes_and_values():
     out = build_features(_sample_df())
     assert len(out) == 2
     for c in CAT_FEATURES + NUM_FEATURES:
-        assert c in out.columns, f"нет колонки {c}"
+        assert c in out.columns, f"missing column {c}"
     r = out.iloc[0]
     assert r["floor_first"] == 1 and r["floor_last"] == 0
-    assert abs(r["dist_center_km"]) < 1.0          # Дворцовый округ — центр
-    assert r["metro_walk_min"] == 5.0              # walk как есть
-    assert out.iloc[1]["metro_walk_min"] == 30.0   # transport ×3
+    assert abs(r["dist_center_km"]) < 1.0          # Dvortsovy okrug is the center
+    assert r["metro_walk_min"] == 5.0              # walk as is
+    assert out.iloc[1]["metro_walk_min"] == 30.0   # transport x3
     assert r["renov_cosmetic"] == 1 and r["fridge"] == 1
     assert r["building_age"] == 46
-    # категории не содержат NaN
+    # categories contain no NaN
     assert (out[CAT_FEATURES].isna().sum() == 0).all()
-    # у второй строки district заполнен заглушкой
+    # the second row's district is filled with a placeholder
     assert out.iloc[1]["district"] == "unknown"

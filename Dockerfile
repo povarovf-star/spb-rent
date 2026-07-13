@@ -2,11 +2,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# зависимости отдельным слоем — кэшируются между сборками
+# dependencies as a separate layer, cached between builds
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# код, модели и подготовленные данные (сырые данные в образ не попадают)
+# code, models and prepared data (raw data does not go into the image)
 COPY src/ src/
 COPY configs/ configs/
 COPY models/ models/
@@ -16,5 +16,5 @@ COPY data/processed/market_scan.parquet data/processed/
 
 EXPOSE 8000 8501
 
-# по умолчанию — API; dashboard переопределяет команду в compose
+# default is the API; the dashboard overrides the command in compose
 CMD ["python", "-m", "uvicorn", "src.app.api:app", "--host", "0.0.0.0", "--port", "8000"]

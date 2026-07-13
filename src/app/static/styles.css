@@ -1,6 +1,6 @@
-/* SPb Rent — warm parchment system (см. DESIGN.md).
-   Ivory canvas, hairline borders вместо теней, serif для голоса,
-   sans для интерфейсной обвязки, clay только на главном действии. */
+/* SPb Rent, a warm parchment system.
+   Ivory canvas, hairline borders instead of shadows, serif for the voice,
+   sans for the interface chrome, clay only on the primary action. */
 
 :root {
   --ink: #141413;
@@ -387,7 +387,7 @@ a:focus-visible {
   font-weight: 600;
 }
 
-/* фирменный приём: скруглены только нижние углы главного действия */
+/* signature touch: only the bottom corners of the primary action are rounded */
 .primary-action {
   width: 100%;
   min-height: 48px;
@@ -619,7 +619,7 @@ a:focus-visible {
   color: var(--cheap-ink);
 }
 
-/* ---------- factors: аналитическая ведомость ---------- */
+/* ---------- factors: an analytical ledger ---------- */
 
 .section-title-row {
   display: flex;
@@ -659,7 +659,7 @@ a:focus-visible {
   height: 8px;
 }
 
-/* центральная ось ведомости */
+/* central axis of the ledger */
 .factor-track::before {
   position: absolute;
   top: -4px;
@@ -915,7 +915,7 @@ td .meta a:hover {
   line-height: 1.5;
 }
 
-/* ---------- footer: единственная тёмная поверхность ---------- */
+/* ---------- footer: the only dark surface ---------- */
 
 .site-footer {
   margin: 24px -32px 0;
@@ -962,7 +962,7 @@ td .meta a:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- motion: тихие переходы, без вычурности ---------- */
+/* ---------- motion: quiet transitions, nothing flashy ---------- */
 
 @media (prefers-reduced-motion: no-preference) {
   .tab-panel.is-active {
@@ -999,7 +999,7 @@ td .meta a:hover {
   }
 }
 
-/* тяжёлые нижние секции не участвуют в первом рендере */
+/* the heavy bottom sections are left out of the first render */
 .faq,
 .site-footer {
   content-visibility: auto;

@@ -1,10 +1,10 @@
-"""Хранилище: сырые дампы ответов API + SQLite с распарсенными объявлениями.
+"""Storage: raw dumps of API responses + SQLite with parsed listings.
 
-Принципы:
-- сырой ответ сохраняется на диск ДО парсинга (gzip json) — парсер меняется,
-  данные не перекачаешь;
-- (offer_id, snapshot_date) — первичный ключ: повторные снимки дают историю цен;
-- segments_done — чекпоинты: перезапуск скрипта пропускает собранные сегменты.
+Principles:
+- the raw response is saved to disk BEFORE parsing (gzip json), because the parser
+  changes but the data cannot be re-downloaded;
+- (offer_id, snapshot_date) is the primary key: repeated snapshots give a price history;
+- segments_done holds checkpoints: a rerun skips already collected segments.
 """
 
 from __future__ import annotations
@@ -85,14 +85,14 @@ class Storage:
         self.snapshot_date = date.today().isoformat()
 
     def _migrate(self) -> None:
-        """Добавляет недостающие колонки в старые базы (простая миграция)."""
+        """Adds missing columns to older databases (a simple migration)."""
         existing = {r[1] for r in self.conn.execute("PRAGMA table_info(offers)")}
         for col in OFFER_COLUMNS:
             if col not in existing:
                 self.conn.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT")
         self.conn.commit()
 
-    # --- сырые дампы ---
+    # --- raw dumps ---
 
     def dump_raw(self, segment_key: str, page: int, payload: dict[str, Any]) -> None:
         d = self.raw_dir / self.snapshot_date
@@ -101,7 +101,7 @@ class Storage:
         with gzip.open(path, "wt", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False)
 
-    # --- объявления ---
+    # --- listings ---
 
     def upsert_offers(
         self, parsed: list[dict[str, Any]], raw_offers: list[dict[str, Any]], region: int
@@ -126,7 +126,7 @@ class Storage:
         self.conn.commit()
         return len(rows)
 
-    # --- чекпоинты сегментов ---
+    # --- segment checkpoints ---
 
     def is_segment_done(self, segment_key: str) -> bool:
         cur = self.conn.execute(

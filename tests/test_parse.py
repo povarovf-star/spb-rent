@@ -1,4 +1,4 @@
-"""Тесты парсера ответа API ЦИАН (без сети)."""
+"""Tests for the CIAN API response parser (no network)."""
 
 from src.scraping.parse import extract_offers, parse_offer, total_count
 
@@ -51,7 +51,7 @@ def test_parse_offer_basic_fields():
     assert rec["price"] == 45000
     assert rec["rooms"] == 2
     assert rec["total_area"] == 54.3
-    assert rec["living_area"] == 30.1  # запятая как разделитель
+    assert rec["living_area"] == 30.1  # comma as the decimal separator
     assert rec["kitchen_area"] is None
     assert rec["floors_total"] == 9
     assert rec["build_year"] == 1978
@@ -63,7 +63,7 @@ def test_parse_offer_basic_fields():
 
 def test_metro_prefers_walking():
     rec = parse_offer(SAMPLE_OFFER)
-    # пешком 12 мин приоритетнее, чем 5 мин на транспорте
+    # 12 min on foot takes priority over 5 min by transport
     assert rec["metro_name"] == "Академическая"
     assert rec["metro_time_min"] == 12
     assert rec["metro_transport"] == "walk"

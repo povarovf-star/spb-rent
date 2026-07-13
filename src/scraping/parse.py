@@ -1,8 +1,8 @@
-"""Извлечение плоских записей объявлений из ответа API ЦИАН.
+"""Extract flat records of listings from the CIAN API response.
 
-Только stdlib — модуль используется и в тестах без сетевых зависимостей.
-Схема ответа может меняться: каждое поле достаём через безопасные .get,
-а сырой JSON объявления сохраняем целиком в storage — перепарсить можно всегда.
+Stdlib only, so the module is also usable in tests without network dependencies.
+The response schema can change: every field is read through safe .get calls,
+and the raw JSON of a listing is stored in full, so it can always be reparsed.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from typing import Any
 
 def _first_underground(geo: dict) -> dict:
     unders = geo.get("undergrounds") or []
-    # приоритет: пешком и ближайшее по времени
+    # priority: on foot and closest by time
     walking = [u for u in unders if u.get("transportType") == "walk"]
     pool = walking or unders
     pool = [u for u in pool if isinstance(u.get("time"), (int, float))]
@@ -22,10 +22,10 @@ def _first_underground(geo: dict) -> dict:
 
 
 def _districts(geo: dict) -> tuple[str | None, str | None]:
-    """(район города, муниципальный округ).
+    """(city district, municipal okrug).
 
-    В адресе ЦИАН: type="raion" — городской район (Красногвардейский),
-    type="okrug" — муниципальный округ (Малая Охта). Оба с geoType="district".
+    In the CIAN address: type="raion" is a city district (Красногвардейский),
+    type="okrug" is a municipal okrug (Малая Охта). Both carry geoType="district".
     """
     district = okrug = None
     for addr in geo.get("address") or []:
@@ -35,13 +35,13 @@ def _districts(geo: dict) -> tuple[str | None, str | None]:
             district = name
         elif t == "okrug":
             okrug = name
-        elif t == "district" and district is None:  # запасной вариант на смену схемы
+        elif t == "district" and district is None:  # fallback if the schema changes
             district = name
     return district, okrug
 
 
 def parse_offer(o: dict[str, Any]) -> dict[str, Any]:
-    """Один оффер из offersSerialized -> плоская запись."""
+    """One offer from offersSerialized -> a flat record."""
     bargain = o.get("bargainTerms") or {}
     geo = o.get("geo") or {}
     building = o.get("building") or {}

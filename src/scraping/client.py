@@ -1,12 +1,12 @@
-"""HTTP-клиент для внутреннего JSON API поисковой выдачи ЦИАН.
+"""HTTP client for CIAN's internal JSON search API.
 
-Ключевые идеи:
-- curl_cffi с impersonate="chrome" даёт TLS-отпечаток настоящего браузера —
-  это основной способ не ловить антибот на уровне соединения;
-- случайные задержки между запросами (вежливый темп);
-- ретраи с экспоненциальным бэкоффом; на 429/403 — длинная пауза;
-- каждый ответ проверяется на "валидность" (наличие offersSerialized),
-  чтобы антибот-заглушка не записалась как данные.
+Main ideas:
+- curl_cffi with impersonate="chrome" gives a real browser's TLS fingerprint,
+  which is the primary way to avoid the antibot at the connection level;
+- random delays between requests (a polite pace);
+- retries with exponential backoff; a long pause on 429/403;
+- every response is checked for "validity" (presence of offersSerialized),
+  so an antibot stub is not stored as data.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ HEADERS = {
 
 
 class AntibotSuspected(Exception):
-    """Ответ 200, но структура не похожа на данные — вероятно, заглушка антибота."""
+    """A 200 response whose structure does not look like data, likely an antibot stub."""
 
 
 class CianClient:
@@ -59,9 +59,9 @@ class CianClient:
         self._last_request_ts = time.monotonic()
 
     def search(self, json_query: dict[str, Any]) -> dict[str, Any]:
-        """Один запрос к выдаче. Возвращает распарсенный JSON ответа API.
+        """One search request. Returns the parsed JSON of the API response.
 
-        Бросает AntibotSuspected / RuntimeError после исчерпания ретраев.
+        Raises AntibotSuspected / RuntimeError once retries are exhausted.
         """
         backoff = 20.0
         last_err: Exception | None = None
@@ -71,7 +71,7 @@ class CianClient:
                 resp = self.session.post(
                     API_URL, json={"jsonQuery": json_query}, timeout=30
                 )
-            except Exception as e:  # сетевые ошибки, таймауты
+            except Exception as e:  # network errors, timeouts
                 last_err = e
                 log.warning("network error (attempt %d/%d): %s", attempt, self.max_retries, e)
                 time.sleep(backoff)
@@ -95,9 +95,9 @@ class CianClient:
                 )
                 log.warning("%s", last_err)
             elif resp.status_code in (403, 429):
-                last_err = RuntimeError(f"HTTP {resp.status_code} — притормаживаем")
+                last_err = RuntimeError(f"HTTP {resp.status_code}, slowing down")
                 log.warning(
-                    "HTTP %d (attempt %d/%d) — долгая пауза %.0f сек",
+                    "HTTP %d (attempt %d/%d), long pause %.0f sec",
                     resp.status_code, attempt, self.max_retries, backoff * 3,
                 )
                 time.sleep(backoff * 3)
@@ -120,12 +120,12 @@ def build_json_query(
     price_lte: int,
     page: int,
 ) -> dict[str, Any]:
-    """Собирает jsonQuery для долгосрочной аренды квартир."""
+    """Builds the jsonQuery for long-term flat rentals."""
     return {
         "_type": "flatrent",
         "engine_version": {"type": "term", "value": 2},
         "region": {"type": "terms", "value": [region]},
-        "for_day": {"type": "term", "value": "!1"},  # исключить посуточную
+        "for_day": {"type": "term", "value": "!1"},  # exclude daily rentals
         "room": {"type": "terms", "value": rooms},
         "price": {"type": "range", "value": {"gte": price_gte, "lte": price_lte}},
         "page": {"type": "term", "value": page},

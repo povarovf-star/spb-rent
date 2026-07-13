@@ -1,15 +1,15 @@
-"""CLI сбора данных с ЦИАН.
+"""CIAN data collection CLI.
 
-Команды:
-    python -m src.scraping.run probe                 # 1 запрос: жив ли API, сколько объявлений
-    python -m src.scraping.run collect               # полный сбор по configs/scraping.yaml
+Commands:
+    python -m src.scraping.run probe                 # 1 request: is the API alive, how many listings
+    python -m src.scraping.run collect               # full collection per configs/scraping.yaml
 
-Логика collect:
-- очередь сегментов (регион × ценовая полоса), комнатность внутри запроса;
-- если в сегменте объявлений больше лимита выдачи — ценовая полоса делится
-  пополам и обе половины возвращаются в очередь (адаптивная сегментация);
-- каждый сегмент по страницам до пустой страницы или лимита;
-- чекпоинты в SQLite: повторный запуск в тот же день пропускает готовые сегменты.
+collect logic:
+- a queue of segments (region × price band), room count inside the request;
+- if a segment holds more listings than the search limit, the price band is split
+  in half and both halves go back into the queue (adaptive segmentation);
+- each segment is paged until an empty page or the limit;
+- checkpoints in SQLite: a rerun on the same day skips finished segments.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from .storage import OFFER_COLUMNS, Storage
 
 log = logging.getLogger("cian")
 
-PAGE_SIZE = 28  # объявлений на страницу выдачи
+PAGE_SIZE = 28  # listings per search page
 
 
 def load_config(path: str) -> dict:
@@ -45,12 +45,12 @@ def cmd_probe(cfg: dict) -> None:
     )
     payload = client.search(query)
     offers = extract_offers(payload)
-    print(f"OK: API отвечает. Всего объявлений в СПб: {total_count(payload)}")
+    print(f"OK: the API responds. Total listings in SPb: {total_count(payload)}")
     if offers:
         o = offers[0]
         print(
-            f"Пример: {o['rooms']}-комн., {o['total_area']} м², "
-            f"{o['price']} ₽/мес, метро {o['metro_name']} ({o['metro_time_min']} мин), "
+            f"Example: {o['rooms']} rooms, {o['total_area']} m2, "
+            f"{o['price']} RUB/mo, metro {o['metro_name']} ({o['metro_time_min']} min), "
             f"{o['district']}"
         )
 
@@ -61,7 +61,7 @@ def collect_segment(
 ) -> None:
     key = f"r{region}_p{lo}-{hi}"
     if store.is_segment_done(key):
-        log.info("[%s] уже собран сегодня — пропуск", key)
+        log.info("[%s] already collected today, skipping", key)
         return
 
     max_pages = cfg["max_pages_per_segment"]
@@ -74,15 +74,15 @@ def collect_segment(
         try:
             payload = client.search(query)
         except AntibotSuspected:
-            log.error("[%s] похоже на антибот — стоп сегмента, продолжим при перезапуске", key)
+            log.error("[%s] looks like antibot, stopping segment, will resume on rerun", key)
             return
 
         if page == 1:
             total = total_count(payload)
-            log.info("[%s] в сегменте ~%d объявлений", key, total)
+            log.info("[%s] ~%d listings in the segment", key, total)
             if total > max_offers and hi - lo > 1000:
                 mid = (lo + hi) // 2
-                log.info("[%s] > %d — делю полосу: [%d, %d] + [%d, %d]",
+                log.info("[%s] > %d, splitting the band: [%d, %d] + [%d, %d]",
                          key, max_offers, lo, mid, mid + 1, hi)
                 queue.append((region, lo, mid))
                 queue.append((region, mid + 1, hi))
@@ -94,7 +94,7 @@ def collect_segment(
         store.dump_raw(key, page, payload)
         raw = (payload.get("data") or {}).get("offersSerialized") or []
         n_offers += store.upsert_offers(offers, raw, region)
-        log.info("[%s] стр. %d: +%d (всего %d)", key, page, len(offers), n_offers)
+        log.info("[%s] page %d: +%d (total %d)", key, page, len(offers), n_offers)
         if len(offers) < PAGE_SIZE:
             break
         page += 1
@@ -118,14 +118,14 @@ def cmd_collect(cfg: dict) -> None:
         collect_segment(client, store, cfg, region, lo, hi, queue)
 
     stats = store.stats()
-    log.info("Готово. Сегодня: %(offers_today)d записей, "
-             "уникальных объявлений за всё время: %(offers_unique_total)d", stats)
+    log.info("Done. Today: %(offers_today)d records, "
+             "unique listings all-time: %(offers_unique_total)d", stats)
 
 
 def cmd_reparse(cfg: dict) -> None:
-    """Перезаполняет распарсенные колонки из сохранённого raw_json.
+    """Refills the parsed columns from the stored raw_json.
 
-    Нужен после исправлений в parse.py — данные не перекачиваются.
+    Useful after fixes in parse.py, without re-downloading the data.
     """
     store = Storage(cfg["db_path"], cfg["raw_dir"])
     conn = store.conn
@@ -147,7 +147,7 @@ def cmd_reparse(cfg: dict) -> None:
             conn.commit()
             log.info("reparse: %d/%d", n, len(rows))
     conn.commit()
-    log.info("reparse готов: %d записей", n)
+    log.info("reparse done: %d records", n)
 
 
 def main() -> None:
@@ -159,7 +159,7 @@ def main() -> None:
             logging.FileHandler("scraping.log", encoding="utf-8"),
         ],
     )
-    parser = argparse.ArgumentParser(description="Сбор объявлений аренды с ЦИАН")
+    parser = argparse.ArgumentParser(description="Collect rental listings from CIAN")
     parser.add_argument("command", choices=["probe", "collect", "reparse"])
     parser.add_argument("--config", default="configs/scraping.yaml")
     args = parser.parse_args()

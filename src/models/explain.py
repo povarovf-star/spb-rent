@@ -1,18 +1,18 @@
-"""Объяснение цены и детектор переплаты.
+"""Price explanation and overpricing detector.
 
-Explainer.explain(row) -> JSON-совместимый dict:
-- fair_price, интервал [low, high] (конформно откалиброванный);
-- вклады человекочитаемых факторов в ₽ (агрегированный SHAP);
-- verdict для фактической цены: overpriced / fair / suspicious_cheap.
+Explainer.explain(row) -> a JSON-compatible dict:
+- fair_price, the interval [low, high] (conformally calibrated);
+- contributions of human-readable factors in RUB (aggregated SHAP);
+- a verdict for the actual price: overpriced / fair / suspicious_cheap.
 
-SHAP берём нативно из CatBoost (type="ShapValues"), в log-пространстве.
-Вклад группы в ₽ считаем контрфактически: «сколько стоила бы квартира,
-если убрать вклад этой группы» — pred − pred/exp(φ_g). Суммы вкладов
-приблизительны (лог-пространство), для UI это честно оговаривается.
+SHAP is taken natively from CatBoost (type="ShapValues"), in log space.
+A group's contribution in RUB is computed counterfactually: "what the flat would
+cost if this group's contribution were removed", pred - pred/exp(phi_g). The sums
+of contributions are approximate (log space), which the UI states honestly.
 
 CLI:
-    python -m src.models.explain demo          # объяснение случайной квартиры
-    python -m src.models.explain scan          # скан рынка -> market_scan.parquet
+    python -m src.models.explain demo          # explain a random flat
+    python -m src.models.explain scan          # market scan -> market_scan.parquet
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from src.features.build import CAT_FEATURES, NUM_FEATURES
 
 MODELS_DIR = Path("models")
 
-# человекочитаемые группы признаков
+# human-readable feature groups (names shown to the user, kept in Russian)
 FACTOR_GROUPS: dict[str, list[str]] = {
     "Локация": ["district", "okrug", "metro_name", "h3_08", "dist_center_km",
                  "dist_moscow_st_km", "metro_walk_min", "has_metro_nearby",
@@ -64,7 +64,7 @@ class Explainer:
         self.cqr_delta = json.loads(
             (d / "quantile_calibration.json").read_text())["cqr_delta_log"]
         self.features = CAT_FEATURES + NUM_FEATURES
-        # колонка -> группа
+        # column -> group
         self.col2group = {c: g for g, cols in FACTOR_GROUPS.items() for c in cols}
 
     def _pool(self, df: pd.DataFrame) -> Pool:
@@ -80,7 +80,7 @@ class Explainer:
         }, index=df.index)
 
     def factor_contributions(self, df: pd.DataFrame) -> pd.DataFrame:
-        """SHAP по группам, в ₽ (контрфактически, см. докстринг модуля)."""
+        """SHAP by group, in RUB (counterfactual, see the module docstring)."""
         shap = self.model.get_feature_importance(self._pool(df), type="ShapValues")
         phi = pd.DataFrame(shap[:, :-1], columns=self.features, index=df.index)
         pred = np.exp(self.model.predict(self._pool(df)))
@@ -126,14 +126,14 @@ def cmd_demo() -> None:
     df = pd.read_parquet("data/processed/features.parquet")
     ex = Explainer()
     row = df.sample(1, random_state=7).iloc[0]
-    print(f"Квартира: {row.rooms_n:.0f}-комн (тип {row.flat_type}), "
-          f"{row.total_area} м², {row.district}, метро {row.metro_name} "
-          f"({row.metro_walk_min:.0f} мин пешком)")
+    print(f"Flat: {row.rooms_n:.0f} rooms (type {row.flat_type}), "
+          f"{row.total_area} m2, {row.district}, metro {row.metro_name} "
+          f"({row.metro_walk_min:.0f} min on foot)")
     print(json.dumps(ex.explain(row), ensure_ascii=False, indent=2))
 
 
 def cmd_scan() -> None:
-    """Скан рынка: вердикты для всех объявлений -> market_scan.parquet."""
+    """Market scan: verdicts for all listings -> market_scan.parquet."""
     df = pd.read_parquet("data/processed/features.parquet")
     ex = Explainer()
     iv = ex.predict_interval(df)
@@ -147,13 +147,13 @@ def cmd_scan() -> None:
         ["overpriced", "suspicious_cheap"], default="fair")
     scan.to_parquet("data/processed/market_scan.parquet", index=False)
 
-    print("вердикты:", dict(scan.verdict.value_counts()))
-    print("\n--- топ-10 переплат (₽/мес сверх справедливой) ---")
+    print("verdicts:", dict(scan.verdict.value_counts()))
+    print("\n--- top 10 overpriced (RUB/mo above fair) ---")
     cols = ["district", "metro_name", "rooms_n", "total_area", "price",
             "fair_price", "delta", "delta_pct"]
     top = scan[scan.verdict == "overpriced"].nlargest(10, "delta")[cols]
     print(top.to_string(index=False))
-    print("\n--- топ-10 подозрительно дёшево ---")
+    print("\n--- top 10 suspiciously cheap ---")
     bot = scan[scan.verdict == "suspicious_cheap"].nsmallest(10, "delta")[cols]
     print(bot.to_string(index=False))
 

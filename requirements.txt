@@ -1,17 +1,17 @@
-# --- scraping (Этап 1) ---
-curl_cffi>=0.7      # HTTP с TLS-отпечатком Chrome — ключ к обходу антибота ЦИАН
+# --- scraping (stage 1) ---
+curl_cffi>=0.7      # HTTP with a Chrome TLS fingerprint, the key to getting past CIAN's antibot
 PyYAML>=6.0
 
-# --- данные и признаки (Этапы 2-3) ---
+# --- data and features (stages 2-3) ---
 pandas>=2.2
 pyarrow>=16.0
 h3>=4.0
 
-# --- модель (Этапы 4-5) ---
+# --- model (stages 4-5) ---
 catboost>=1.2
 scikit-learn>=1.4
 
-# --- приложение (Этап 6) ---
+# --- application (stage 6) ---
 fastapi>=0.110
 uvicorn>=0.29
 requests>=2.31

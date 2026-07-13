@@ -1,20 +1,20 @@
-"""Слияние источников (ЦИАН + Яндекс) в единый сырой датасет.
+"""Merging the sources (CIAN + Yandex) into a single raw dataset.
 
-Проблема: у Яндекса из карточки берутся только цена/комнаты/площадь/этаж/
-координаты. Модель же обучена на признаках ЦИАН (район, метро, тип дома...).
-Решение:
-  - гео-признаки (район, ближайшее метро и время до него) для Яндекса
-    ДЕРИВИМ по ближайшим соседям из ЦИАН (KNN по координатам) — данные,
-    а не догадки: рядом стоящие квартиры в одном районе и у одного метро;
-  - остальные поля (год, материал, текстовые) остаются пустыми → в модели
-    закроются нейтральными дефолтами (как в inference-пути).
+Problem: from a Yandex card only price/rooms/area/floor/coordinates are taken.
+The model, however, is trained on CIAN features (district, metro, building type...).
+Solution:
+  - geo features (district, nearest metro and time to it) for Yandex are
+    DERIVED from the nearest CIAN neighbors (KNN over coordinates), which is data
+    rather than guesswork: nearby flats sit in the same district and near the same metro;
+  - the remaining fields (year, material, text) stay empty and are filled with
+    neutral defaults in the model (as on the inference path).
 
-Кросс-платформенную дедупликацию делает существующий clean.py: одна квартира
-с ЦИАН и Яндекса совпадёт по ключу (координаты+площадь+этаж+комнаты).
+Cross-platform deduplication is handled by the existing clean.py: one flat from
+CIAN and Yandex matches on the key (coordinates+area+floor+rooms).
 
-Запуск (после сбора Яндекса):
+Run (after collecting Yandex):
     python -m src.cleaning.merge_sources
-Выход: data/processed/all_sources_raw.parquet (колонка source).
+Output: data/processed/all_sources_raw.parquet (source column).
 """
 from __future__ import annotations
 
@@ -55,10 +55,10 @@ def load_yandex() -> pd.DataFrame:
 
 
 def derive_geo_from_cian(yx: pd.DataFrame, cian: pd.DataFrame, k: int = 7) -> pd.DataFrame:
-    """Заполняет район/метро для Яндекса по k ближайшим объявлениям ЦИАН.
+    """Fills district/metro for Yandex from the k nearest CIAN listings.
 
-    district — по большинству среди соседей; metro_name/time — от самого
-    близкого соседа. Координаты в радианах, метрика haversine (BallTree).
+    district comes from the majority among neighbors; metro_name/time from the
+    closest neighbor. Coordinates in radians, haversine metric (BallTree).
     """
     ref = cian.dropna(subset=["lat", "lon"]).reset_index(drop=True)
     tree = BallTree(np.radians(ref[["lat", "lon"]].values), metric="haversine")
@@ -68,12 +68,12 @@ def derive_geo_from_cian(yx: pd.DataFrame, cian: pd.DataFrame, k: int = 7) -> pd
     districts, okrugs, metro_names, metro_times = [], [], [], []
     for row_idx in idx:
         neigh = ref.iloc[row_idx]
-        # район — мода среди соседей
+        # district: the mode among neighbors
         d = neigh["district"].mode()
         districts.append(d.iloc[0] if len(d) else None)
         o = neigh["okrug"].mode()
         okrugs.append(o.iloc[0] if len(o) else None)
-        # метро — от ближайшего соседа (первый в списке)
+        # metro: from the closest neighbor (first in the list)
         metro_names.append(neigh["metro_name"].iloc[0])
         metro_times.append(neigh["metro_time_min"].iloc[0])
     yx = yx.copy()
@@ -86,10 +86,10 @@ def derive_geo_from_cian(yx: pd.DataFrame, cian: pd.DataFrame, k: int = 7) -> pd
 
 
 def normalize_yandex(yx: pd.DataFrame, cian: pd.DataFrame) -> pd.DataFrame:
-    """Приводит Яндекс к сырой схеме ЦИАН (недостающее = NaN)."""
+    """Maps Yandex to the raw CIAN schema (missing = NaN)."""
     yx = derive_geo_from_cian(yx, cian)
     out = pd.DataFrame(index=yx.index)
-    # прямые соответствия
+    # direct mappings
     out["offer_id"] = yx["offer_id"]
     out["snapshot_date"] = yx["snapshot_date"]
     out["price"] = yx["price"]
@@ -106,9 +106,9 @@ def normalize_yandex(yx: pd.DataFrame, cian: pd.DataFrame) -> pd.DataFrame:
     out["metro_time_min"] = yx["metro_time_min"]
     out["metro_transport"] = yx["metro_transport"]
     out["url"] = yx["url"]
-    out["region"] = 2                       # только СПб
+    out["region"] = 2                       # SPb only
     out["source"] = "yandex"
-    # поля, которых у Яндекса нет — заполнятся дефолтами в build_features
+    # fields Yandex does not have, filled with defaults in build_features
     for col in ["deposit", "client_fee_pct", "agent_fee_pct", "utilities_included",
                 "is_apartments", "living_area", "kitchen_area", "build_year",
                 "material_type", "address", "is_by_homeowner", "published_ts",
@@ -120,13 +120,13 @@ def normalize_yandex(yx: pd.DataFrame, cian: pd.DataFrame) -> pd.DataFrame:
 def main() -> None:
     cian = load_cian()
     yx = load_yandex()
-    print(f"ЦИАН: {len(cian)} | Яндекс: {len(yx)}")
+    print(f"CIAN: {len(cian)} | Yandex: {len(yx)}")
     yx_norm = normalize_yandex(yx, cian)
     combined = pd.concat([cian, yx_norm], ignore_index=True)
     combined["offer_id"] = combined["offer_id"].astype(str)  # int(cian)+str(yandex)
     Path(OUT).parent.mkdir(parents=True, exist_ok=True)
     combined.to_parquet(OUT, index=False)
-    print(f"объединено: {len(combined)} строк ({dict(combined.source.value_counts())})")
+    print(f"combined: {len(combined)} rows ({dict(combined.source.value_counts())})")
     print(f"-> {OUT}")
 
 

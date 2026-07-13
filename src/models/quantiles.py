@@ -1,11 +1,11 @@
-"""Квантильная модель: интервалы предсказания q10/q50/q90.
+"""Quantile model: prediction intervals q10/q50/q90.
 
-Отдельная CatBoost-модель с MultiQuantile-лоссом. Интервал нужен:
-- пользователю: «справедливая цена 42 000 ₽ (37 000–48 000)»;
-- детектору переплаты: цена выше q90 — статистически «дорого для таких
-  квартир», а не просто «выше точечного предсказания».
+A separate CatBoost model with a MultiQuantile loss. The interval is needed for:
+- the user: "fair price 42,000 RUB (37,000-48,000)";
+- the overpricing detector: a price above q90 is statistically "expensive for flats
+  like this", not just "above the point prediction".
 
-Запуск: python -m src.models.quantiles
+Run: python -m src.models.quantiles
 """
 
 from __future__ import annotations
@@ -44,17 +44,17 @@ def main() -> None:
     MODELS_DIR.mkdir(exist_ok=True)
     model.save_model(str(MODELS_DIR / "quantiles.cbm"))
 
-    # --- конформная калибровка (CQR, Romano et al. 2019) ---
-    # Квантильная регрессия самоуверенна: сырое покрытие [q10, q90] < 80%.
-    # На валидации считаем conformity score s = max(q10 - y, y - q90)
-    # и расширяем обе границы на его 80-й процентиль (в log-пространстве).
+    # --- conformal calibration (CQR, Romano et al. 2019) ---
+    # Quantile regression is overconfident: raw coverage of [q10, q90] < 80%.
+    # On validation, compute the conformity score s = max(q10 - y, y - q90)
+    # and widen both bounds by its 80th percentile (in log space).
     va_pred = model.predict(make_pool(va2))  # log, (n, 3)
     scores = np.maximum(va_pred[:, 0] - yva2.values, yva2.values - va_pred[:, 2])
     delta = float(np.quantile(scores, 0.8))
     (MODELS_DIR / "quantile_calibration.json").write_text(
         json.dumps({"cqr_delta_log": delta, "target_coverage": 0.8}))
 
-    # покрытие на holdout ПОСЛЕ калибровки (калибровка — на валидации, честно)
+    # holdout coverage AFTER calibration (calibration is on validation, done honestly)
     preds_log = model.predict(make_pool(hold_df))
     lo = np.exp(preds_log[:, 0] - delta)
     mid = np.exp(preds_log[:, 1])
